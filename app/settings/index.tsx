@@ -3,6 +3,7 @@ import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../hooks/useAuth'
 import Avatar from '../../components/shared/Avatar'
+import Logo from '../../components/shared/Logo'
 import { useInvite } from '../../hooks/useInvite'
 
 export default function SettingsScreen() {
@@ -26,7 +27,7 @@ export default function SettingsScreen() {
     <SafeAreaView className="flex-1 bg-slate-50">
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-slate-100">
-        <Text className="font-extrabold text-xl text-slate-900">Settings</Text>
+        <Logo width={100} />
         <Pressable onPress={() => router.back()}>
           <Text className="text-slate-400 font-bold text-lg">✕</Text>
         </Pressable>

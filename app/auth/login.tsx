@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
+import Logo from '../../components/shared/Logo'
 
 export default function LoginScreen() {
   const { signIn } = useAuth()
@@ -43,7 +44,7 @@ export default function LoginScreen() {
   if (sent) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center px-6">
-        <Text style={{ fontSize: 48 }}>📬</Text>
+        <Logo width={120} />
         <Text className="text-2xl font-bold text-slate-900 mt-6 text-center">Check your email</Text>
         <Text className="text-slate-500 mt-3 text-center leading-relaxed">
           We sent a magic link to{'\n'}{email}.{'\n\n'}Tap the link in the email to sign in.
@@ -63,11 +64,8 @@ export default function LoginScreen() {
       >
         {/* Logo */}
         <View className="items-center mb-10">
-          <View className="bg-slate-900 p-4 rounded-3xl mb-4">
-            <Text style={{ fontSize: 36 }}>🔒</Text>
-          </View>
-          <Text className="text-3xl font-extrabold text-slate-900 tracking-tight">Family Vault</Text>
-          <Text className="text-slate-500 mt-2">Your private family space</Text>
+          <Logo width={200} />
+          <Text className="text-slate-500 mt-1">Your private family space</Text>
         </View>
 
         {/* Email field */}

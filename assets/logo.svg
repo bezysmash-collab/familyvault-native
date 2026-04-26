@@ -1,0 +1,60 @@
+<svg width="680" height="565" viewBox="0 0 680 565" xmlns="http://www.w3.org/2000/svg">
+<title>Family Vault logo</title>
+<desc>A deep navy shield containing a warm amber house with windows and a keyhole door, representing a secure private family space</desc>
+
+<!-- Shield body -->
+<path d="M 220 55 L 460 55 Q 482 55 482 77 L 482 292 Q 478 398 340 452 Q 202 398 198 292 L 198 77 Q 198 55 220 55 Z" fill="#1a2744"/>
+
+<!-- Shield inner accent ring -->
+<path d="M 228 68 L 452 68 Q 469 68 469 86 L 469 290 Q 465 384 340 436 Q 215 384 211 290 L 211 86 Q 211 68 228 68 Z" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.28"/>
+
+<!-- Vault rivets left -->
+<circle cx="207" cy="126" r="5" fill="#243358"/>
+<circle cx="203" cy="198" r="5" fill="#243358"/>
+<circle cx="203" cy="270" r="5" fill="#243358"/>
+
+<!-- Vault rivets right -->
+<circle cx="473" cy="126" r="5" fill="#243358"/>
+<circle cx="477" cy="198" r="5" fill="#243358"/>
+<circle cx="477" cy="270" r="5" fill="#243358"/>
+
+<!-- Chimney (drawn before roof so roof overlaps lower portion) -->
+<rect x="378" y="148" width="22" height="42" fill="#f59e0b"/>
+<rect x="374" y="143" width="30" height="11" fill="#fcd34d" rx="2"/>
+
+<!-- House roof -->
+<polygon points="340,148 440,245 240,245" fill="#f59e0b"/>
+
+<!-- House body -->
+<rect x="248" y="243" width="184" height="132" fill="#fef3c7"/>
+
+<!-- Left window -->
+<rect x="262" y="258" width="44" height="38" fill="#fde68a" rx="3"/>
+<line x1="284" y1="258" x2="284" y2="296" stroke="#f59e0b" stroke-width="2"/>
+<line x1="262" y1="277" x2="306" y2="277" stroke="#f59e0b" stroke-width="2"/>
+
+<!-- Right window -->
+<rect x="374" y="258" width="44" height="38" fill="#fde68a" rx="3"/>
+<line x1="396" y1="258" x2="396" y2="296" stroke="#f59e0b" stroke-width="2"/>
+<line x1="374" y1="277" x2="418" y2="277" stroke="#f59e0b" stroke-width="2"/>
+
+<!-- Door -->
+<rect x="319" y="303" width="42" height="72" fill="#f87171" rx="3"/>
+
+<!-- Keyhole -->
+<circle cx="340" cy="328" r="8" fill="#7f1d1d"/>
+<path d="M 336 335 L 344 335 L 342 350 L 338 350 Z" fill="#7f1d1d"/>
+
+<!-- Vault combination lock ring at shield base -->
+<circle cx="340" cy="418" r="17" fill="#243358" stroke="#f59e0b" stroke-width="2.5"/>
+<circle cx="340" cy="418" r="8" fill="#f59e0b"/>
+<circle cx="340" cy="418" r="3.5" fill="#1a2744"/>
+<line x1="340" y1="398" x2="340" y2="403" stroke="#f59e0b" stroke-width="2"/>
+<line x1="340" y1="433" x2="340" y2="438" stroke="#f59e0b" stroke-width="2"/>
+<line x1="320" y1="418" x2="325" y2="418" stroke="#f59e0b" stroke-width="2"/>
+<line x1="355" y1="418" x2="360" y2="418" stroke="#f59e0b" stroke-width="2"/>
+
+<!-- Logo text -->
+<text x="340" y="497" font-family="Georgia, 'Times New Roman', serif" font-size="42" font-weight="bold" fill="#1a2744" text-anchor="middle" letter-spacing="1">Family Vault</text>
+<text x="340" y="532" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#6b7280" text-anchor="middle" letter-spacing="5">private · secure · yours</text>
+</svg>

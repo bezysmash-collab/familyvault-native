@@ -11,6 +11,7 @@ module.exports = {
     '^./lib/supabase$':       '<rootDir>/lib/__mocks__/supabase.ts',
     '^expo-image$':           '<rootDir>/__tests__/mocks/expo-image.tsx',
     '^expo-av$':              '<rootDir>/__tests__/mocks/expo-av.tsx',
+    '\\.(svg|png|jpg|jpeg|gif|webp)$': '<rootDir>/__tests__/mocks/asset.ts',
   },
   testMatch: ['**/__tests__/**/*.test.{ts,tsx}'],
   collectCoverageFrom: [
