@@ -26,7 +26,7 @@ export default function HistoryScreen() {
   ), [profile?.id, react, addComment])
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {/* Search bar */}
       <View className="px-4 py-3 bg-white border-b border-slate-100">
         <View className="bg-slate-100 rounded-2xl flex-row items-center px-4 py-2 gap-2">

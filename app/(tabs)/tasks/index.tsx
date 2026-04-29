@@ -28,7 +28,7 @@ export default function TasksScreen() {
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#0f172a" />

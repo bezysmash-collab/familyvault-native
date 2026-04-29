@@ -26,7 +26,7 @@ export default function TabLayout() {
             <Pressable
               onPress={() => { Notifications.setBadgeCountAsync(0); router.push('/settings') }}
             >
-              <Text style={{ fontSize: 22 }}>⚙️</Text>
+              <Text style={{ fontSize: 22 }}>🔔</Text>
             </Pressable>
             <Pressable onPress={() => router.push('/settings/profile')}>
               <Avatar profile={profile} size={32} />
