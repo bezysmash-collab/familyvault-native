@@ -12,15 +12,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#1a2744"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.familyvault.app",
       "buildNumber": "1",
-      "associatedDomains": [
-        "applinks:familyvault.app",
-        "webcredentials:familyvault.app"
-      ],
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Family Vault uses your photo library to share photos with your family.",
         "NSCameraUsageDescription": "Family Vault uses your camera to take and share photos.",
@@ -45,7 +43,10 @@
           "photosPermission": "Family Vault uses your photo library to share photos with your family.",
           "cameraPermission": "Family Vault uses your camera to take and share photos."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

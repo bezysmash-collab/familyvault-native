@@ -1,11 +1,27 @@
 import { memo, useMemo, useState } from 'react'
-import { View, Text, Pressable, TextInput, ScrollView } from 'react-native'
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet } from 'react-native'
 import { Image } from 'expo-image'
-import { Video, ResizeMode } from 'expo-av'
+import { VideoView, useVideoPlayer } from 'expo-video'
 import Avatar from '../shared/Avatar'
 import SpaceBadge from '../shared/SpaceBadge'
 import ReactionPicker from './ReactionPicker'
 import { timeAgo } from '../../lib/timeAgo'
+
+function VideoPlayer({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => { p.loop = false })
+  return (
+    <VideoView
+      player={player}
+      style={styles.video}
+      contentFit="contain"
+      nativeControls
+    />
+  )
+}
+
+const styles = StyleSheet.create({
+  video: { width: '100%', height: 220 },
+})
 
 const REACTIONS = [
   { key: 'like',    emoji: '👍' },
@@ -76,12 +92,7 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
       )}
       {post.type === 'video' && post.attachment?.url && (
         <View className="mx-4 mb-3 rounded-xl overflow-hidden bg-black">
-          <Video
-            source={{ uri: post.attachment.url }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            style={{ width: '100%', height: 220 }}
-          />
+          <VideoPlayer uri={post.attachment.url} />
         </View>
       )}
 
