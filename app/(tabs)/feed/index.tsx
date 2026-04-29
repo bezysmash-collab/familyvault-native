@@ -57,6 +57,7 @@ export default function FeedScreen() {
           data={posts}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          style={{ flex: 1 }}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 24 }}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}

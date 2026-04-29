@@ -105,6 +105,7 @@ export default function VaultScreen() {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
+          style={{ flex: 1 }}
           renderItem={({ item }) => (
             <VaultItem
               item={item}

@@ -62,6 +62,7 @@ export default function HistoryScreen() {
           data={filtered}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          style={{ flex: 1 }}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 24 }}
           onEndReached={!query ? loadMore : undefined}
           onEndReachedThreshold={0.3}

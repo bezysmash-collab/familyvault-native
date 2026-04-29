@@ -1,6 +1,6 @@
 import { Tabs, router } from 'expo-router'
 import { Pressable, View, Text } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Image } from 'expo-image'
 import * as Notifications from 'expo-notifications'
 import { useAuth } from '../../hooks/useAuth'
 import Avatar from '../../components/shared/Avatar'
@@ -40,7 +40,16 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🏠</Text>,
-          headerTitle: 'Family Vault',
+          headerTitle: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Image
+                source={require('../../assets/logo.svg')}
+                style={{ width: 32, height: 27 }}
+                contentFit="contain"
+              />
+              <Text style={{ fontWeight: '800', fontSize: 20, color: '#0f172a' }}>Family Vault</Text>
+            </View>
+          ),
         }}
       />
       <Tabs.Screen

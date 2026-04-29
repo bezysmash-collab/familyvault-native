@@ -37,6 +37,7 @@ export default function TasksScreen() {
         <FlatList
           data={[...pending, ...completed]}
           keyExtractor={(item) => item.id}
+          style={{ flex: 1 }}
           renderItem={({ item }) => (
             <TaskRow task={item} onToggle={() => toggleDone(item.id, item.done)} />
           )}
