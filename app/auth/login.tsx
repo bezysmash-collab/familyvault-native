@@ -41,7 +41,7 @@ export default function LoginScreen() {
 
   const handleVerify = async () => {
     const trimmedCode = code.trim()
-    if (trimmedCode.length !== 6) return
+    if (trimmedCode.length < 6) return
     setVerifying(true)
     const { error } = await supabase.auth.verifyOtp({
       email: email.trim().toLowerCase(),
@@ -78,20 +78,20 @@ export default function LoginScreen() {
             <TextInput
               ref={codeRef}
               value={code}
-              onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
-              placeholder="123456"
+              onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 8))}
+              placeholder="12345678"
               placeholderTextColor="#94a3b8"
               keyboardType="number-pad"
               returnKeyType="done"
               onSubmitEditing={handleVerify}
               className="text-3xl text-slate-900 tracking-widest text-center py-2"
-              maxLength={6}
+              maxLength={8}
             />
           </View>
 
           <Pressable
             onPress={handleVerify}
-            disabled={verifying || code.trim().length !== 6}
+            disabled={verifying || code.trim().length < 6}
             className={`mt-4 rounded-2xl py-4 items-center ${
               verifying || code.trim().length !== 6 ? 'bg-slate-200' : 'bg-slate-900'
             }`}
