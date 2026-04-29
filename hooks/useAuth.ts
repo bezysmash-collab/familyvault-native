@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AppState } from 'react-native'
-import * as Linking from 'expo-linking'
 import { supabase } from '../lib/supabase'
 import { registerPushToken } from './usePushNotifications'
 
@@ -52,14 +51,7 @@ export function useAuth() {
   const signIn = useCallback(async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        // Route through the web app so clicking the email on macOS opens the
-        // Vercel page, which then JS-redirects to familyvault:// and iOS opens
-        // the app. Falls back to the custom scheme directly when no web URL is set.
-        emailRedirectTo: process.env.EXPO_PUBLIC_WEB_URL
-          ? `${process.env.EXPO_PUBLIC_WEB_URL}/auth/callback`
-          : Linking.createURL('/auth/verify'),
-      },
+      options: { shouldCreateUser: false },
     })
     return { error }
   }, [])

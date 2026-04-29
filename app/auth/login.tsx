@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   View, Text, TextInput, Pressable, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert,
@@ -13,21 +13,18 @@ export default function LoginScreen() {
   const [email,   setEmail]   = useState('')
   const [loading, setLoading] = useState(false)
   const [sent,    setSent]    = useState(false)
+  const [code,    setCode]    = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const codeRef = useRef<TextInput>(null)
 
   const handleSignIn = async () => {
     const trimmed = email.trim().toLowerCase()
     if (!trimmed) return
-
     setLoading(true)
 
-    // Client-side invite gate (same RPC as the web app)
     const { data: allowed } = await supabase.rpc('is_email_allowed', { check_email: trimmed })
     if (!allowed) {
-      Alert.alert(
-        'Invite required',
-        'Ask a family member to invite you before signing in.',
-        [{ text: 'OK' }]
-      )
+      Alert.alert('Invite required', 'Ask a family member to invite you before signing in.')
       setLoading(false)
       return
     }
@@ -39,19 +36,80 @@ export default function LoginScreen() {
       return
     }
     setSent(true)
+    setTimeout(() => codeRef.current?.focus(), 400)
+  }
+
+  const handleVerify = async () => {
+    const trimmedCode = code.trim()
+    if (trimmedCode.length !== 6) return
+    setVerifying(true)
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: trimmedCode,
+      type: 'email',
+    })
+    setVerifying(false)
+    if (error) {
+      Alert.alert('Invalid code', 'The code is incorrect or has expired. Try requesting a new one.')
+      setCode('')
+    }
+    // On success, useAuth detects the new session automatically
   }
 
   if (sent) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center px-6">
-        <Logo width={120} />
-        <Text className="text-2xl font-bold text-slate-900 mt-6 text-center">Check your email</Text>
-        <Text className="text-slate-500 mt-3 text-center leading-relaxed">
-          We sent a magic link to{'\n'}{email}.{'\n\n'}Tap the link in the email to sign in.
-        </Text>
-        <Pressable onPress={() => setSent(false)} className="mt-8">
-          <Text className="text-blue-500 font-semibold">Use a different email</Text>
-        </Pressable>
+      <SafeAreaView className="flex-1 bg-slate-50">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="flex-1 px-6 justify-center"
+        >
+          <View className="items-center mb-8">
+            <Logo width={120} />
+            <Text className="text-2xl font-bold text-slate-900 mt-6 text-center">Check your email</Text>
+            <Text className="text-slate-500 mt-2 text-center leading-relaxed">
+              We sent a 6-digit code to{'\n'}
+              <Text className="font-semibold text-slate-700">{email}</Text>
+            </Text>
+          </View>
+
+          {/* Code entry */}
+          <View className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+            <Text className="text-sm font-semibold text-slate-700 mb-2">Enter code</Text>
+            <TextInput
+              ref={codeRef}
+              value={code}
+              onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
+              placeholder="123456"
+              placeholderTextColor="#94a3b8"
+              keyboardType="number-pad"
+              returnKeyType="done"
+              onSubmitEditing={handleVerify}
+              className="text-3xl text-slate-900 tracking-widest text-center py-2"
+              maxLength={6}
+            />
+          </View>
+
+          <Pressable
+            onPress={handleVerify}
+            disabled={verifying || code.trim().length !== 6}
+            className={`mt-4 rounded-2xl py-4 items-center ${
+              verifying || code.trim().length !== 6 ? 'bg-slate-200' : 'bg-slate-900'
+            }`}
+          >
+            {verifying ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text className="font-bold text-base text-white">Sign in</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => { setSent(false); setCode('') }}
+            className="mt-4 items-center py-3"
+          >
+            <Text className="text-blue-500 font-semibold">Use a different email</Text>
+          </Pressable>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     )
   }
@@ -62,13 +120,11 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1 px-6 justify-center"
       >
-        {/* Logo */}
         <View className="items-center mb-10">
           <Logo width={200} />
           <Text className="text-slate-500 mt-1">Your private family space</Text>
         </View>
 
-        {/* Email field */}
         <View className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
           <Text className="text-sm font-semibold text-slate-700 mb-2">Email address</Text>
           <TextInput
@@ -86,7 +142,6 @@ export default function LoginScreen() {
           />
         </View>
 
-        {/* Sign-in button */}
         <Pressable
           onPress={handleSignIn}
           disabled={loading || !email.trim()}
@@ -97,7 +152,7 @@ export default function LoginScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text className="font-bold text-base text-white">Send Magic Link</Text>
+            <Text className="font-bold text-base text-white">Send sign-in code</Text>
           )}
         </Pressable>
 
