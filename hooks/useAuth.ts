@@ -26,8 +26,8 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (session) {
+        setLoading(true) // hold the gate open until profile is fetched
         fetchProfile(session.user.id)
-        // Register APNs token on every sign-in (token can rotate)
         registerPushToken(session.user.id)
       } else {
         setProfile(null)

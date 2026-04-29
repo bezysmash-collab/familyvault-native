@@ -3,7 +3,6 @@ import {
   View, Text, TextInput, Pressable, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert,
 } from 'react-native'
-import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
@@ -53,9 +52,8 @@ export default function LoginScreen() {
     if (error) {
       Alert.alert('Invalid code', 'The code is wrong or has expired. Request a new one.')
       setCode('')
-    } else {
-      router.replace('/(tabs)/feed')
     }
+    // On success _layout.tsx's guard navigates once profile is loaded
   }
 
   const canVerify = code.trim().length > 0 && !verifying
