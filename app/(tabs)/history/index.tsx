@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react'
-import { FlatList, View, Text, TextInput, Pressable, ActivityIndicator, RefreshControl } from 'react-native'
+import { ScrollView, View, Text, TextInput, Pressable, ActivityIndicator, RefreshControl } from 'react-native'
 import { usePosts } from '../../../hooks/usePosts'
 import { useAuth } from '../../../hooks/useAuth'
 import PostCard from '../../../components/feed/PostCard'
 
 export default function HistoryScreen() {
   const { profile }                                              = useAuth()
-  const { posts, loading, hasMore, loadingMore, react, addComment, loadMore, refresh } = usePosts()
+  const { posts, loading, react, addComment, refresh } = usePosts()
   const [query, setQuery]                                        = useState('')
 
   const filtered = query.trim()
@@ -16,8 +16,9 @@ export default function HistoryScreen() {
       )
     : posts
 
-  const renderItem = useCallback(({ item }: { item: any }) => (
+  const renderPost = useCallback((item: any) => (
     <PostCard
+      key={item.id}
       post={item}
       currentUserId={profile?.id ?? ''}
       onReact={react}
@@ -28,57 +29,45 @@ export default function HistoryScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {/* Search bar */}
-      <View className="px-4 py-3 bg-white border-b border-slate-100">
-        <View className="bg-slate-100 rounded-2xl flex-row items-center px-4 py-2 gap-2">
-          <Text className="text-slate-400">🔍</Text>
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+        <View style={{ backgroundColor: '#f1f5f9', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+          <Text style={{ color: '#94a3b8' }}>🔍</Text>
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder="Search posts…"
             placeholderTextColor="#94a3b8"
-            className="flex-1 text-base text-slate-800"
+            style={{ flex: 1, fontSize: 16, color: '#1e293b' }}
           />
           {query.length > 0 && (
             <Pressable onPress={() => setQuery('')}>
-              <Text className="text-slate-400 font-bold">✕</Text>
+              <Text style={{ color: '#94a3b8', fontWeight: '700' }}>✕</Text>
             </Pressable>
           )}
         </View>
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#0f172a" />
         </View>
       ) : filtered.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-8">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
           <Text style={{ fontSize: 48 }}>🕐</Text>
-          <Text className="text-xl font-bold text-slate-900 mt-4">
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#0f172a', marginTop: 16 }}>
             {query ? 'No results' : 'No history yet'}
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
+        <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 24 }}
-          onEndReached={!query ? loadMore : undefined}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={
-            !query && loadingMore
-              ? <ActivityIndicator className="py-4" color="#64748b" />
-              : !query && hasMore
-                ? <Pressable onPress={loadMore} className="py-4 items-center">
-                    <Text className="text-slate-500 font-semibold text-sm">Load older</Text>
-                  </Pressable>
-                : null
-          }
           refreshControl={
             <RefreshControl refreshing={loading} onRefresh={refresh} tintColor="#0f172a" />
           }
-        />
+        >
+          {filtered.map(renderPost)}
+        </ScrollView>
       )}
     </View>
   )

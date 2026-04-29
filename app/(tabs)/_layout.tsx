@@ -24,11 +24,11 @@ export default function TabLayout() {
         headerRight: () => (
           <View className="flex-row items-center gap-2 pr-4">
             <Pressable
-              onPress={() => { Notifications.setBadgeCountAsync(0); router.push('/settings') }}
+              onPress={() => { Notifications.setBadgeCountAsync(0); router.push('/settings/notifications') }}
             >
               <Text style={{ fontSize: 22 }}>🔔</Text>
             </Pressable>
-            <Pressable onPress={() => router.push('/settings/profile')}>
+            <Pressable onPress={() => router.push('/settings')}>
               <Avatar profile={profile} size={32} />
             </Pressable>
           </View>

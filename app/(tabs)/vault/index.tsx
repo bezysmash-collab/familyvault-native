@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import {
-  View, Text, FlatList, Pressable, TextInput,
+  View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, Alert, Modal, KeyboardAvoidingView,
   Platform,
 } from 'react-native'
@@ -98,30 +98,26 @@ export default function VaultScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {loading ? (
-        <View className="flex-1 items-center justify-center">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#0f172a" />
         </View>
+      ) : items.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+          <Text style={{ fontSize: 48 }}>🗂️</Text>
+          <Text className="text-xl font-bold text-slate-900 mt-4">Nothing here yet</Text>
+          <Text className="text-slate-500 mt-2">Add documents, passwords, or notes.</Text>
+        </View>
       ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          style={{ flex: 1 }}
-          renderItem={({ item }) => (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}>
+          {items.map((item) => (
             <VaultItem
+              key={item.id}
               item={item}
               onDownload={() => handleDownload(item)}
               onDelete={() => handleDelete(item)}
             />
-          )}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center py-20">
-              <Text style={{ fontSize: 48 }}>🗂️</Text>
-              <Text className="text-xl font-bold text-slate-900 mt-4">Nothing here yet</Text>
-              <Text className="text-slate-500 mt-2">Add documents, passwords, or notes.</Text>
-            </View>
-          }
-        />
+          ))}
+        </ScrollView>
       )}
 
       {/* FAB */}
