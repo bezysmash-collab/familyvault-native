@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
 const SIGNED_URL_TTL = 7200
@@ -35,6 +35,10 @@ export function usePosts(spaceId: string | null = null) {
   const [hasMore,     setHasMore]     = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error,       setError]       = useState<any>(null)
+
+  // Unique channel ID per hook instance — prevents duplicate subscriptions when
+  // multiple screens (Feed + History) mount usePosts() with the same spaceId.
+  const channelId = useMemo(() => `posts-${spaceId ?? 'all'}-${Math.random().toString(36).slice(2, 7)}`, [spaceId])
 
   const postsRef = useRef<any[]>([])
   useEffect(() => { postsRef.current = posts }, [posts])
@@ -81,7 +85,7 @@ export function usePosts(spaceId: string | null = null) {
 
   useEffect(() => {
     const channel = supabase
-      .channel(`posts-${spaceId ?? 'all'}`)
+      .channel(channelId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
         if (spaceId && payload.new.space_id !== spaceId) return
         const { data } = await supabase.from('posts').select(POST_QUERY).eq('id', payload.new.id).single()
@@ -142,7 +146,7 @@ export function usePosts(spaceId: string | null = null) {
       .subscribe()
 
     return () => supabase.removeChannel(channel)
-  }, [spaceId])
+  }, [spaceId, channelId])
 
   const createPost = useCallback(async ({
     content, spaceId: sid, type = 'text', file = null,

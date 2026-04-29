@@ -8,6 +8,7 @@ import * as DocumentPicker from 'expo-document-picker'
 import * as SecureStore from 'expo-secure-store'
 import * as Linking from 'expo-linking'
 import { useVault } from '../../../hooks/useVault'
+import { useContentHeight } from '../../../hooks/useContentHeight'
 import VaultItem from '../../../components/vault/VaultItem'
 
 const VAULT_PIN_KEY = 'vault_pin'
@@ -16,6 +17,7 @@ const CATEGORIES = ['Insurance', 'Legal', 'Health', 'Finance', 'Identity', 'Gene
 
 export default function VaultScreen() {
   const { items, loading, createItem, deleteItem, getDownloadUrl } = useVault()
+  const contentHeight = useContentHeight()
   const [unlocked,  setUnlocked]  = useState(false)
   const [pin,       setPin]       = useState('')
   const [showForm,  setShowForm]  = useState(false)
@@ -98,17 +100,17 @@ export default function VaultScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ height: contentHeight, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#0f172a" />
         </View>
       ) : items.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+        <View style={{ height: contentHeight, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
           <Text style={{ fontSize: 48 }}>🗂️</Text>
-          <Text className="text-xl font-bold text-slate-900 mt-4">Nothing here yet</Text>
-          <Text className="text-slate-500 mt-2">Add documents, passwords, or notes.</Text>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#0f172a', marginTop: 16 }}>Nothing here yet</Text>
+          <Text style={{ color: '#64748b', marginTop: 8 }}>Add documents, passwords, or notes.</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}>
+        <ScrollView style={{ height: contentHeight }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}>
           {items.map((item) => (
             <VaultItem
               key={item.id}

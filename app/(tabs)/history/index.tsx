@@ -2,12 +2,16 @@ import { useCallback, useState } from 'react'
 import { ScrollView, View, Text, TextInput, Pressable, ActivityIndicator, RefreshControl } from 'react-native'
 import { usePosts } from '../../../hooks/usePosts'
 import { useAuth } from '../../../hooks/useAuth'
+import { useContentHeight } from '../../../hooks/useContentHeight'
 import PostCard from '../../../components/feed/PostCard'
 
 export default function HistoryScreen() {
-  const { profile }                                              = useAuth()
+  const { profile }                                    = useAuth()
   const { posts, loading, react, addComment, refresh } = usePosts()
-  const [query, setQuery]                                        = useState('')
+  const contentHeight                                  = useContentHeight()
+  const [query, setQuery]                              = useState('')
+  const [subHeaderHeight, setSubHeaderHeight]          = useState(0)
+  const scrollHeight = contentHeight > 0 ? contentHeight - subHeaderHeight : undefined
 
   const filtered = query.trim()
     ? posts.filter((p) =>
@@ -28,8 +32,10 @@ export default function HistoryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      {/* Search bar */}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+      <View
+        style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}
+        onLayout={(e) => setSubHeaderHeight(e.nativeEvent.layout.height)}
+      >
         <View style={{ backgroundColor: '#f1f5f9', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
           <Text style={{ color: '#94a3b8' }}>🔍</Text>
           <TextInput
@@ -48,11 +54,11 @@ export default function HistoryScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ height: scrollHeight, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#0f172a" />
         </View>
       ) : filtered.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+        <View style={{ height: scrollHeight, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
           <Text style={{ fontSize: 48 }}>🕐</Text>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#0f172a', marginTop: 16 }}>
             {query ? 'No results' : 'No history yet'}
@@ -60,7 +66,7 @@ export default function HistoryScreen() {
         </View>
       ) : (
         <ScrollView
-          style={{ flex: 1 }}
+          style={{ height: scrollHeight }}
           contentContainerStyle={{ paddingTop: 12, paddingBottom: 24 }}
           refreshControl={
             <RefreshControl refreshing={loading} onRefresh={refresh} tintColor="#0f172a" />

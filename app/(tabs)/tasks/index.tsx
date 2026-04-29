@@ -4,13 +4,15 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native'
 import { useTasks } from '../../../hooks/useTasks'
+import { useContentHeight } from '../../../hooks/useContentHeight'
 import TaskRow from '../../../components/tasks/TaskRow'
 
 export default function TasksScreen() {
   const { tasks, loading, createTask, toggleDone } = useTasks()
-  const [showForm, setShowForm]                    = useState(false)
-  const [title,    setTitle]                       = useState('')
-  const [creating, setCreating]                    = useState(false)
+  const contentHeight = useContentHeight()
+  const [showForm, setShowForm] = useState(false)
+  const [title,    setTitle]    = useState('')
+  const [creating, setCreating] = useState(false)
 
   const pending   = tasks.filter((t) => !t.done)
   const completed = tasks.filter((t) =>  t.done)
@@ -27,19 +29,19 @@ export default function TasksScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ height: contentHeight, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#0f172a" />
         </View>
       ) : tasks.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+        <View style={{ height: contentHeight, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
           <Text style={{ fontSize: 48 }}>✅</Text>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#0f172a', marginTop: 16 }}>No tasks yet</Text>
           <Text style={{ color: '#64748b', marginTop: 8 }}>Add tasks to keep your family organised.</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+        <ScrollView style={{ height: contentHeight }} contentContainerStyle={{ paddingBottom: 100 }}>
           {pending.length > 0 && completed.length > 0 && (
-            <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#f8fafc' }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1.5 }}>
                 To do — {pending.length}
               </Text>
@@ -49,7 +51,7 @@ export default function TasksScreen() {
             <TaskRow key={item.id} task={item} onToggle={() => toggleDone(item.id, item.done)} />
           ))}
           {completed.length > 0 && (
-            <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#f8fafc', marginTop: 8 }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 8, marginTop: 8 }}>
               <Text style={{ fontSize: 12, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1.5 }}>
                 Completed — {completed.length}
               </Text>
@@ -61,7 +63,6 @@ export default function TasksScreen() {
         </ScrollView>
       )}
 
-      {/* FAB */}
       <Pressable
         onPress={() => setShowForm(true)}
         style={{ position: 'absolute', bottom: 24, right: 24, backgroundColor: '#0f172a', borderRadius: 28, width: 56, height: 56, alignItems: 'center', justifyContent: 'center' }}
@@ -69,7 +70,6 @@ export default function TasksScreen() {
         <Text style={{ color: '#ffffff', fontSize: 28, lineHeight: 32, fontWeight: '300' }}>+</Text>
       </Pressable>
 
-      {/* New task modal */}
       <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setShowForm(false)} />
