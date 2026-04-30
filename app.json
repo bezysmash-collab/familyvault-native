@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.familyvault.app",
+      "bundleIdentifier": "com.app.familyvault",
       "buildNumber": "1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Family Vault uses your photo library to share photos with your family.",
@@ -46,7 +46,8 @@
       ],
       "expo-font",
       "expo-image",
-      "expo-sharing"
+      "expo-sharing",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

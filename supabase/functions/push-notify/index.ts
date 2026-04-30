@@ -11,7 +11,7 @@
  * Required secrets (set via: supabase secrets set KEY=value):
  *   APNS_KEY_ID        – from Apple Developer portal
  *   APNS_TEAM_ID       – your Apple Developer team ID
- *   APNS_BUNDLE_ID     – com.familyvault.app
+ *   APNS_BUNDLE_ID     – com.app.familyvault
  *   APNS_PRIVATE_KEY   – contents of the .p8 file (with literal \n newlines)
  *   SUPABASE_SERVICE_ROLE_KEY – set automatically by Supabase
  *   SUPABASE_URL              – set automatically by Supabase
