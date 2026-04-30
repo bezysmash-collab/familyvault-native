@@ -7,7 +7,7 @@ import SpaceBadge from '../shared/SpaceBadge'
 import ReactionPicker from './ReactionPicker'
 import { timeAgo } from '../../lib/timeAgo'
 
-function VideoPlayer({ uri }: { uri: string }) {
+const VideoPlayer = memo(function VideoPlayer({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => { p.loop = false })
   return (
     <VideoView
@@ -17,7 +17,7 @@ function VideoPlayer({ uri }: { uri: string }) {
       nativeControls
     />
   )
-}
+})
 
 const styles = StyleSheet.create({
   video: { width: '100%', height: 220 },
@@ -87,6 +87,7 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
             source={{ uri: post.attachment.url }}
             style={{ width: '100%', height: 220 }}
             contentFit="cover"
+            cachePolicy="memory-disk"
           />
         </View>
       )}

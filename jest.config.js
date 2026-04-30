@@ -11,6 +11,8 @@ module.exports = {
     '^./lib/supabase$':       '<rootDir>/lib/__mocks__/supabase.ts',
     '^expo-image$':           '<rootDir>/__tests__/mocks/expo-image.tsx',
     '^expo-video$':           '<rootDir>/__tests__/mocks/expo-video.tsx',
+    '^expo-modules-core(.*)$': '<rootDir>/node_modules/expo/node_modules/expo-modules-core$1',
+    '^@react-native-community/datetimepicker$': '<rootDir>/__tests__/mocks/datetimepicker.tsx',
     '\\.(svg|png|jpg|jpeg|gif|webp)$': '<rootDir>/__tests__/mocks/asset.ts',
   },
   testMatch: ['**/__tests__/**/*.test.{ts,tsx}'],

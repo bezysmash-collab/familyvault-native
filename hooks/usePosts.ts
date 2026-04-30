@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 
 const SIGNED_URL_TTL = 7200
 const PAGE_SIZE = 20
+// Re-sign a URL when it has less than 10 minutes of TTL remaining
+const RENEW_BEFORE_EXPIRY_MS = 10 * 60 * 1000
 
 const POST_QUERY = `
   *,
@@ -12,20 +14,32 @@ const POST_QUERY = `
   reactions(*)
 `
 
+// Module-level signed URL cache: path → { url, expiresAt (ms) }
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
 async function hydrateSignedUrls(posts: any[]): Promise<any[]> {
-  const needsSigning = posts.filter(
-    (p) => p.attachment?.path && (p.type === 'photo' || p.type === 'video' || p.type === 'file')
-  )
-  if (needsSigning.length === 0) return posts
-  const paths = needsSigning.map((p) => p.attachment.path)
-  const { data: signed } = await supabase.storage
-    .from('attachments')
-    .createSignedUrls(paths, SIGNED_URL_TTL)
-  const urlMap: Record<string, string> = {}
-  ;(signed || []).forEach((s: any) => { urlMap[s.path] = s.signedUrl })
+  const now = Date.now()
+  const needsSigning = posts.filter((p) => {
+    if (!p.attachment?.path || !['photo', 'video', 'file'].includes(p.type)) return false
+    const cached = signedUrlCache.get(p.attachment.path)
+    return !cached || cached.expiresAt - now < RENEW_BEFORE_EXPIRY_MS
+  })
+
+  if (needsSigning.length > 0) {
+    const paths = needsSigning.map((p) => p.attachment.path)
+    const { data: signed } = await supabase.storage
+      .from('attachments')
+      .createSignedUrls(paths, SIGNED_URL_TTL)
+    const expiresAt = now + SIGNED_URL_TTL * 1000
+    ;(signed || []).forEach((s: any) => {
+      signedUrlCache.set(s.path, { url: s.signedUrl, expiresAt })
+    })
+  }
+
   return posts.map((p) => {
-    if (!p.attachment?.path || !urlMap[p.attachment.path]) return p
-    return { ...p, attachment: { ...p.attachment, url: urlMap[p.attachment.path] } }
+    const cached = signedUrlCache.get(p.attachment?.path)
+    if (!cached) return p
+    return { ...p, attachment: { ...p.attachment, url: cached.url } }
   })
 }
 
@@ -36,12 +50,21 @@ export function usePosts(spaceId: string | null = null) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error,       setError]       = useState<any>(null)
 
-  // Unique channel ID per hook instance — prevents duplicate subscriptions when
-  // multiple screens (Feed + History) mount usePosts() with the same spaceId.
-  const channelId = useMemo(() => `posts-${spaceId ?? 'all'}-${Math.random().toString(36).slice(2, 7)}`, [spaceId])
+  const channelId = useMemo(
+    () => `posts-${spaceId ?? 'all'}-${Math.random().toString(36).slice(2, 7)}`,
+    [spaceId]
+  )
 
-  const postsRef = useRef<any[]>([])
+  const postsRef  = useRef<any[]>([])
+  const userIdRef = useRef<string | null>(null)
   useEffect(() => { postsRef.current = posts }, [posts])
+
+  // Cache the user ID once on mount — avoids an auth round-trip on every react()
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      userIdRef.current = user?.id ?? null
+    })
+  }, [])
 
   const fetchPosts = useCallback(async () => {
     setLoading(true)
@@ -123,9 +146,18 @@ export function usePosts(spaceId: string | null = null) {
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reactions' }, (payload: any) => {
         const r = payload.new
-        setPosts((prev) => prev.map((p) =>
-          p.id === r.post_id ? { ...p, reactions: [...(p.reactions || []), r] } : p
-        ))
+        setPosts((prev) => prev.map((p) => {
+          if (p.id !== r.post_id) return p
+          // Replace optimistic placeholder from the current user, or append from others
+          const reactions = (p.reactions || []).some(
+            (x: any) => x.id.startsWith('opt-') && x.user_id === r.user_id
+          )
+            ? p.reactions.map((x: any) =>
+                x.id.startsWith('opt-') && x.user_id === r.user_id ? r : x
+              )
+            : [...p.reactions, r]
+          return { ...p, reactions }
+        }))
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reactions' }, (payload: any) => {
         const r = payload.new
@@ -169,18 +201,66 @@ export function usePosts(spaceId: string | null = null) {
   }, [])
 
   const react = useCallback(async (postId: string, reactionType: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const userId = userIdRef.current
+    if (!userId) return
+
     const existing = postsRef.current
       .find((p) => p.id === postId)
-      ?.reactions?.find((r: any) => r.user_id === user.id)
+      ?.reactions?.find((r: any) => r.user_id === userId)
+
     if (existing) {
       if (existing.type === reactionType) {
-        await supabase.from('reactions').delete().eq('id', existing.id)
+        // Optimistically remove
+        setPosts((prev) => prev.map((p) =>
+          p.id === postId
+            ? { ...p, reactions: p.reactions.filter((r: any) => r.id !== existing.id) }
+            : p
+        ))
+        const { error } = await supabase.from('reactions').delete().eq('id', existing.id)
+        if (error) {
+          setPosts((prev) => prev.map((p) =>
+            p.id === postId
+              ? { ...p, reactions: [...p.reactions, existing] }
+              : p
+          ))
+        }
       } else {
-        await supabase.from('reactions').update({ type: reactionType }).eq('id', existing.id)
+        // Optimistically update type
+        setPosts((prev) => prev.map((p) =>
+          p.id === postId
+            ? { ...p, reactions: p.reactions.map((r: any) => r.id === existing.id ? { ...r, type: reactionType } : r) }
+            : p
+        ))
+        const { error } = await supabase.from('reactions').update({ type: reactionType }).eq('id', existing.id)
+        if (error) {
+          setPosts((prev) => prev.map((p) =>
+            p.id === postId
+              ? { ...p, reactions: p.reactions.map((r: any) => r.id === existing.id ? existing : r) }
+              : p
+          ))
+        }
       }
     } else {
-      await supabase.from('reactions').insert({ post_id: postId, user_id: user.id, type: reactionType })
+      // Optimistically insert with a placeholder ID
+      const tempId = `opt-${Date.now()}`
+      const optimistic = {
+        id: tempId, post_id: postId, user_id: userId,
+        type: reactionType, created_at: new Date().toISOString(),
+      }
+      setPosts((prev) => prev.map((p) =>
+        p.id === postId ? { ...p, reactions: [...(p.reactions || []), optimistic] } : p
+      ))
+      const { error } = await supabase.from('reactions').insert({
+        post_id: postId, user_id: userId, type: reactionType,
+      })
+      if (error) {
+        setPosts((prev) => prev.map((p) =>
+          p.id === postId
+            ? { ...p, reactions: p.reactions.filter((r: any) => r.id !== tempId) }
+            : p
+        ))
+      }
+      // The realtime INSERT event replaces the opt- placeholder with the real server row
     }
   }, [])
 

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { View, Text } from 'react-native'
 
 interface Props {
@@ -5,7 +6,7 @@ interface Props {
   size?: number
 }
 
-export default function Avatar({ profile, size = 40 }: Props) {
+function Avatar({ profile, size = 40 }: Props) {
   const fontSize = size * 0.38
 
   if (!profile) {
@@ -34,3 +35,5 @@ export default function Avatar({ profile, size = 40 }: Props) {
     </View>
   )
 }
+
+export default memo(Avatar)

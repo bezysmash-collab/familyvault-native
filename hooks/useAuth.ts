@@ -49,7 +49,10 @@ export function useAuth() {
   }
 
   const signIn = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ email })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: 'https://familyvault.app/auth/verify' },
+    })
     return { error }
   }, [])
 
