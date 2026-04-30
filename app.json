@@ -51,6 +51,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "52bd74e7-742e-4192-b74c-5910ccde786d"
+      }
+    },
+    "owner": "bezysmash"
   }
 }
