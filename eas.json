@@ -19,8 +19,7 @@
     "production": {
       "autoIncrement": true,
       "ios": {
-        "buildConfiguration": "Release",
-        "bundleIdentifier": "com.app.familyvault"
+        "buildConfiguration": "Release"
       }
     }
   },
