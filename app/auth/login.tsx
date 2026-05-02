@@ -41,16 +41,25 @@ export default function LoginScreen() {
 
   const handleVerify = async () => {
     const trimmedCode = code.trim()
-    if (!trimmedCode) return
+    if (!trimmedCode || verifying) return
     setVerifying(true)
-    const { error } = await supabase.auth.verifyOtp({
+    // Try 'email' type first (returning users), fall back to 'signup' (first-time users)
+    let { error } = await supabase.auth.verifyOtp({
       email: email.trim().toLowerCase(),
       token: trimmedCode,
       type:  'email',
     })
+    if (error) {
+      const retry = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: trimmedCode,
+        type:  'signup',
+      })
+      error = retry.error
+    }
     setVerifying(false)
     if (error) {
-      Alert.alert('Invalid code', 'The code is wrong or has expired. Request a new one.')
+      Alert.alert('Sign-in failed', error.message)
       setCode('')
     }
     // On success _layout.tsx's guard navigates once profile is loaded
@@ -93,7 +102,7 @@ export default function LoginScreen() {
           <Pressable
             onPress={handleVerify}
             disabled={!canVerify}
-            className={`mt-4 rounded-2xl py-4 items-center ${canVerify ? 'bg-slate-900' : 'bg-slate-200'}`}
+            className={`mt-4 rounded-2xl py-4 items-center ${canVerify ? 'bg-slate-900' : 'bg-slate-400'}`}
           >
             {verifying
               ? <ActivityIndicator color="#fff" />
