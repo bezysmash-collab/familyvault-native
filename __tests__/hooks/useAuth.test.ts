@@ -32,8 +32,8 @@ describe('useAuth', () => {
     )
   })
 
-  // RN-T45 — emailRedirectTo must be the universal link, not window.location.origin
-  it('signIn uses the familyvault.app universal link as emailRedirectTo', async () => {
+  // RN-T45 — signIn sends only email, no magic link redirect (OTP-only flow)
+  it('signIn calls signInWithOtp with only the email', async () => {
     const { result } = renderHook(() => useAuth())
     await waitFor(() => expect(result.current.loading).toBe(false))
 
@@ -41,13 +41,7 @@ describe('useAuth', () => {
       await result.current.signIn('alice@example.com')
     })
 
-    expect(supabase.auth.signInWithOtp).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          emailRedirectTo: expect.stringContaining('familyvault.app'),
-        }),
-      })
-    )
+    expect(supabase.auth.signInWithOtp).toHaveBeenCalledWith({ email: 'alice@example.com' })
   })
 
   // RN-T46
