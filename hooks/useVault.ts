@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { randomUUID } from '../lib/uuid'
 
 const SIGNED_URL_TTL = 60 // Vault items: short-lived URLs
 
@@ -31,7 +32,7 @@ export function useVault() {
 
     if (file) {
       const ext  = file.name.split('.').pop()
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`
+      const path = `${user.id}/${randomUUID()}.${ext}`
       // In RN, fetch the file as a blob from the local URI
       const response = await fetch(file.uri)
       const blob     = await response.blob()

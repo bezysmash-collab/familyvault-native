@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { randomUUID } from '../lib/uuid'
 
 const SIGNED_URL_TTL = 7200
 const PAGE_SIZE = 20
@@ -189,7 +190,7 @@ export function usePosts(spaceId: string | null = null) {
     let attachment = null
     if (file) {
       const ext  = (file.name ?? 'upload').split('.').pop() ?? 'bin'
-      const path = `${crypto.randomUUID()}.${ext}`
+      const path = `${randomUUID()}.${ext}`
       // fetch().arrayBuffer() works in React Native/Hermes; new File() does not
       const arrayBuffer = await fetch(file.uri).then((r) => r.arrayBuffer())
       const { error: uploadError } = await supabase.storage
