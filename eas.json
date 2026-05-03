@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 10.0.0"
+    "version": ">= 10.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -8,6 +9,13 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
+      }
+    },
+    "simulator": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
       }
     },
     "preview": {
@@ -27,7 +35,7 @@
     "production": {
       "ios": {
         "appleId": "bezysmash@gmail.com",
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_ID"
+        "ascAppId": "6764725002"
       }
     }
   }
