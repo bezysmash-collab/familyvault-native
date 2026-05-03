@@ -1,22 +1,61 @@
 import 'react-native-url-polyfill/auto'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { createClient } from '@supabase/supabase-js'
 import { AppState } from 'react-native'
 
 const supabaseUrl  = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabaseAnon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
 
+// SecureStore has a 2KB per-key limit; chunk large session tokens across multiple keys
+const CHUNK_SIZE = 1800
+
+const SecureStorage = {
+  async getItem(key: string): Promise<string | null> {
+    const countStr = await SecureStore.getItemAsync(`${key}_n`)
+    if (countStr) {
+      const n = parseInt(countStr, 10)
+      const chunks = await Promise.all(
+        Array.from({ length: n }, (_, i) => SecureStore.getItemAsync(`${key}_${i}`))
+      )
+      return chunks.every(Boolean) ? (chunks as string[]).join('') : null
+    }
+    return SecureStore.getItemAsync(key)
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (value.length > CHUNK_SIZE) {
+      const chunks: string[] = []
+      for (let i = 0; i < value.length; i += CHUNK_SIZE) chunks.push(value.slice(i, i + CHUNK_SIZE))
+      await SecureStore.setItemAsync(`${key}_n`, String(chunks.length))
+      await Promise.all(chunks.map((c, i) => SecureStore.setItemAsync(`${key}_${i}`, c)))
+    } else {
+      await SecureStore.setItemAsync(key, value)
+      await SecureStore.deleteItemAsync(`${key}_n`).catch(() => {})
+    }
+  },
+  async removeItem(key: string): Promise<void> {
+    const countStr = await SecureStore.getItemAsync(`${key}_n`)
+    if (countStr) {
+      const n = parseInt(countStr, 10)
+      await Promise.all([
+        SecureStore.deleteItemAsync(`${key}_n`),
+        ...Array.from({ length: n }, (_, i) => SecureStore.deleteItemAsync(`${key}_${i}`)),
+      ])
+    } else {
+      await SecureStore.deleteItemAsync(key).catch(() => {})
+    }
+  },
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnon, {
   auth: {
-    storage:            AsyncStorage,
+    storage:            SecureStorage,
     autoRefreshToken:   true,
     persistSession:     true,
-    detectSessionInUrl: false, // handled manually via deep link in app/auth/verify.tsx
+    detectSessionInUrl: false,
   },
 })
 
 // Pause/resume the token auto-refresh when the app goes to background/foreground.
-// This prevents unnecessary token refresh calls while the app is suspended.
 AppState.addEventListener('change', (state) => {
   if (state === 'active') supabase.auth.startAutoRefresh()
   else                    supabase.auth.stopAutoRefresh()

@@ -58,7 +58,7 @@ export default function RootLayout() {
 function handleDeepLink(url: string) {
   const parsed = Linking.parse(url)
   if (parsed.path?.startsWith('join/')) {
-    const token = parsed.path.replace('join/', '')
+    const token = parsed.path.slice('join/'.length)
     router.push(`/join/${token}`)
   }
   if (parsed.path === 'auth/verify') {

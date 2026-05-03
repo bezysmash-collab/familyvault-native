@@ -41,10 +41,12 @@ export function useInvite() {
 
   const markUsed = useCallback(async (token: string) => {
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     await supabase
       .from('invites')
       .update({ used: true, used_by: user.id })
       .eq('token', token)
+      .eq('used', false)
   }, [])
 
   return { createInvite, shareInvite, validateToken, markUsed }

@@ -13,6 +13,7 @@
  *   APNS_TEAM_ID       – your Apple Developer team ID
  *   APNS_BUNDLE_ID     – com.app.familyvault
  *   APNS_PRIVATE_KEY   – contents of the .p8 file (with literal \n newlines)
+ *   WEBHOOK_SECRET     – shared HMAC secret; set in Supabase webhook "Signing Secret" field
  *   SUPABASE_SERVICE_ROLE_KEY – set automatically by Supabase
  *   SUPABASE_URL              – set automatically by Supabase
  */
@@ -29,9 +30,25 @@ const supabase = createClient(
 let cachedJwt: string | null = null
 let jwtCreatedAt = 0
 
+async function verifySignature(req: Request, rawBody: string): Promise<boolean> {
+  const secret = Deno.env.get('WEBHOOK_SECRET')
+  if (!secret) return true // dev: skip verification when secret not set
+  const sig = req.headers.get('x-webhook-signature') ?? ''
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  )
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(rawBody))
+  const expected = 'sha256=' + Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('')
+  return sig === expected
+}
+
 Deno.serve(async (req) => {
   try {
-    const body = await req.json()
+    const rawBody = await req.text()
+    if (!await verifySignature(req, rawBody)) {
+      return new Response('Unauthorized', { status: 401 })
+    }
+    const body = JSON.parse(rawBody)
     const { type, table, record, old_record } = body
 
     const notifications = await buildNotifications(type, table, record, old_record)

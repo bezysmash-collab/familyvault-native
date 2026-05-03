@@ -6,7 +6,8 @@ import {
 } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
 import * as SecureStore from 'expo-secure-store'
-import * as Linking from 'expo-linking'
+import * as Sharing from 'expo-sharing'
+import * as FileSystem from 'expo-file-system'
 import { useVault } from '../../../hooks/useVault'
 import { useContentHeight } from '../../../hooks/useContentHeight'
 import VaultItem from '../../../components/vault/VaultItem'
@@ -18,8 +19,10 @@ const CATEGORIES = ['Insurance', 'Legal', 'Health', 'Finance', 'Identity', 'Gene
 export default function VaultScreen() {
   const { items, loading, createItem, deleteItem, getDownloadUrl } = useVault()
   const contentHeight = useContentHeight()
-  const [unlocked,  setUnlocked]  = useState(false)
-  const [pin,       setPin]       = useState('')
+  const [unlocked,      setUnlocked]      = useState(false)
+  const [pin,           setPin]           = useState('')
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [lockedUntil,   setLockedUntil]   = useState<number | null>(null)
   const [showForm,  setShowForm]  = useState(false)
   const [title,     setTitle]     = useState('')
   const [category,  setCategory]  = useState(CATEGORIES[0])
@@ -28,16 +31,35 @@ export default function VaultScreen() {
   const [creating,  setCreating]  = useState(false)
 
   const handleUnlock = async () => {
+    if (lockedUntil && Date.now() < lockedUntil) {
+      const secs = Math.ceil((lockedUntil - Date.now()) / 1000)
+      Alert.alert('Too many attempts', `Try again in ${secs} seconds.`)
+      return
+    }
+    if (pin.length < 4) {
+      Alert.alert('PIN too short', 'PIN must be at least 4 digits.')
+      return
+    }
     const stored = await SecureStore.getItemAsync(VAULT_PIN_KEY)
     if (!stored) {
-      // First time — set the PIN
       await SecureStore.setItemAsync(VAULT_PIN_KEY, pin)
       setUnlocked(true)
     } else if (stored === pin) {
+      setFailedAttempts(0)
+      setLockedUntil(null)
       setUnlocked(true)
     } else {
-      Alert.alert('Wrong PIN', 'Try again.')
+      const next = failedAttempts + 1
+      setFailedAttempts(next)
       setPin('')
+      if (next >= 5) {
+        const until = Date.now() + 60_000
+        setLockedUntil(until)
+        setFailedAttempts(0)
+        Alert.alert('Too many attempts', 'Vault locked for 60 seconds.')
+      } else {
+        Alert.alert('Wrong PIN', `Try again. ${5 - next} attempt${5 - next === 1 ? '' : 's'} remaining.`)
+      }
     }
   }
 
@@ -59,7 +81,14 @@ export default function VaultScreen() {
     if (!item.file_url) return
     const { url, error } = await getDownloadUrl(item.file_url)
     if (error || !url) { Alert.alert('Error', 'Could not generate download link.'); return }
-    Linking.openURL(url)
+    const filename = item.file_url.split('/').pop() ?? 'download'
+    const localUri = `${FileSystem.cacheDirectory}${filename}`
+    const { uri } = await FileSystem.downloadAsync(url, localUri)
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri)
+    } else {
+      Alert.alert('Sharing not available', 'Cannot open file on this device.')
+    }
   }, [getDownloadUrl])
 
   const handleDelete = useCallback((item: any) => {
