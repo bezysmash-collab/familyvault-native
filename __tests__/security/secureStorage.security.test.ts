@@ -7,22 +7,32 @@ import * as SecureStore from 'expo-secure-store'
 
 const CHUNK_SIZE = 1800
 
-// Local re-implementation of the adapter from lib/supabase.ts.
+// Local re-implementation of the adapter from lib/supabase.ts (including memory cache).
 // The lib/supabase module is replaced by a Supabase mock during tests,
 // so we reconstruct the storage logic here to test the algorithm directly.
+const memCache = new Map<string, string | null>()
+
+async function readFromKeychain(key: string): Promise<string | null> {
+  const countStr = await SecureStore.getItemAsync(`${key}_n`)
+  if (countStr) {
+    const n      = parseInt(countStr, 10)
+    const chunks = await Promise.all(
+      Array.from({ length: n }, (_, i) => SecureStore.getItemAsync(`${key}_${i}`))
+    )
+    return chunks.every(Boolean) ? (chunks as string[]).join('') : null
+  }
+  return SecureStore.getItemAsync(key)
+}
+
 const SecureStorage = {
   async getItem(key: string): Promise<string | null> {
-    const countStr = await SecureStore.getItemAsync(`${key}_n`)
-    if (countStr) {
-      const n = parseInt(countStr, 10)
-      const chunks = await Promise.all(
-        Array.from({ length: n }, (_, i) => SecureStore.getItemAsync(`${key}_${i}`))
-      )
-      return chunks.every(Boolean) ? (chunks as string[]).join('') : null
-    }
-    return SecureStore.getItemAsync(key)
+    if (memCache.has(key)) return memCache.get(key) ?? null
+    const value = await readFromKeychain(key)
+    memCache.set(key, value)
+    return value
   },
   async setItem(key: string, value: string): Promise<void> {
+    memCache.set(key, value)
     if (value.length > CHUNK_SIZE) {
       const chunks: string[] = []
       for (let i = 0; i < value.length; i += CHUNK_SIZE) chunks.push(value.slice(i, i + CHUNK_SIZE))
@@ -34,6 +44,7 @@ const SecureStorage = {
     }
   },
   async removeItem(key: string): Promise<void> {
+    memCache.delete(key)
     const countStr = await SecureStore.getItemAsync(`${key}_n`)
     if (countStr) {
       const n = parseInt(countStr, 10)
@@ -49,6 +60,7 @@ const SecureStorage = {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  memCache.clear()
   ;(SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null)
   ;(SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined)
   ;(SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined)
@@ -135,5 +147,26 @@ describe('SecureStorage adapter — security', () => {
     })
     const result = await SecureStorage.getItem('sb-session')
     expect(result).toBe('direct-token-value')
+  })
+
+  // SEC-T23: memory cache prevents repeated Keychain IPC on subsequent reads (performance)
+  it('getItem reads from Keychain once and serves subsequent reads from memory cache', async () => {
+    ;(SecureStore.getItemAsync as jest.Mock).mockResolvedValue('cached-token')
+    await SecureStorage.getItem('sb-session')
+    await SecureStorage.getItem('sb-session')
+    await SecureStorage.getItem('sb-session')
+    // Keychain should only be called once (for _n check + key read = 2 calls on first access)
+    const keychainCalls = (SecureStore.getItemAsync as jest.Mock).mock.calls.length
+    expect(keychainCalls).toBeLessThanOrEqual(2)
+  })
+
+  // SEC-T24: removeItem evicts from memory cache (no stale reads after sign-out)
+  it('removeItem clears the memory cache so the next getItem re-reads from Keychain', async () => {
+    ;(SecureStore.getItemAsync as jest.Mock).mockResolvedValue('old-token')
+    await SecureStorage.getItem('sb-session')         // warms cache
+    await SecureStorage.removeItem('sb-session')      // evicts
+    ;(SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null)
+    const result = await SecureStorage.getItem('sb-session') // must re-hit Keychain
+    expect(result).toBeNull()
   })
 })
