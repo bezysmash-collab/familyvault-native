@@ -183,15 +183,20 @@ export function usePosts(spaceId: string | null = null) {
   const createPost = useCallback(async ({
     content, spaceId: sid, type = 'text', file = null,
   }: {
-    content: string; spaceId?: string | null; type?: string; file?: any
+    content: string; spaceId?: string | null; type?: string
+    file?: { uri: string; name: string; type: string } | null
   }) => {
     let attachment = null
     if (file) {
-      const ext  = file.name.split('.').pop()
+      const ext  = (file.name ?? 'upload').split('.').pop() ?? 'bin'
       const path = `${crypto.randomUUID()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('attachments').upload(path, file)
+      // fetch().arrayBuffer() works in React Native/Hermes; new File() does not
+      const arrayBuffer = await fetch(file.uri).then((r) => r.arrayBuffer())
+      const { error: uploadError } = await supabase.storage
+        .from('attachments')
+        .upload(path, arrayBuffer, { contentType: file.type })
       if (uploadError) return { error: uploadError }
-      attachment = { path, name: file.name, size: file.size, mime_type: file.type }
+      attachment = { path, name: file.name, mime_type: file.type }
     }
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('posts').insert({

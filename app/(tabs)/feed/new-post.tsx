@@ -76,28 +76,25 @@ export default function NewPostScreen() {
     const hasContent = content.trim() || file || (postType === 'link' && linkUrl.trim())
     if (!hasContent || loading) return
     setLoading(true)
+    try {
+      const finalContent = postType === 'link'
+        ? (content.trim() ? `${content.trim()}\n${linkUrl.trim()}` : linkUrl.trim())
+        : content.trim()
 
-    let postFile = null
-    if (file) {
-      const response = await fetch(file.uri)
-      const blob     = await response.blob()
-      postFile = new File([blob], file.name, { type: file.type ?? 'application/octet-stream' })
+      const { error } = await createPost({
+        content: finalContent,
+        spaceId,
+        type: file ? postType : postType === 'link' ? 'link' : 'text',
+        file: file ? { uri: file.uri, name: file.name, type: file.type ?? 'application/octet-stream' } : null,
+      })
+
+      if (error) { Alert.alert('Error', error.message); return }
+      router.back()
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
-
-    const finalContent = postType === 'link'
-      ? (content.trim() ? `${content.trim()}\n${linkUrl.trim()}` : linkUrl.trim())
-      : content.trim()
-
-    const { error } = await createPost({
-      content: finalContent,
-      spaceId,
-      type: file ? postType : postType === 'link' ? 'link' : 'text',
-      file: postFile,
-    })
-
-    setLoading(false)
-    if (error) { Alert.alert('Error', error.message); return }
-    router.back()
   }
 
   const selectedSpace = spaces.find(s => s.id === spaceId)
