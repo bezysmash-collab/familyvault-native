@@ -67,6 +67,13 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="dates/index"
+          options={{
+            title: 'Dates',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>📅</Text>,
+          }}
+        />
+        <Tabs.Screen
           name="vault/index"
           options={{
             title: 'Vault',

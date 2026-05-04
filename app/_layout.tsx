@@ -15,6 +15,7 @@ SplashScreen.preventAutoHideAsync()
 function handleNotificationTap(data: Record<string, string>) {
   if (data.screen === 'feed')   router.push('/(tabs)/feed')
   if (data.screen === 'tasks')  router.push('/(tabs)/tasks')
+  if (data.screen === 'dates')  router.push('/(tabs)/dates' as any)
 }
 
 export default function RootLayout() {

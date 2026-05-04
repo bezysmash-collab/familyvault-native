@@ -2,16 +2,16 @@ import { View, Text, Pressable } from 'react-native'
 import Avatar from '../shared/Avatar'
 
 interface Props {
-  task:     any
-  onToggle: () => void
+  task:    any
+  onPress: () => void
 }
 
-export default function TaskRow({ task, onToggle }: Props) {
+export default function TaskRow({ task, onPress }: Props) {
   const overdue = task.due_date && !task.done && new Date(task.due_date) < new Date()
 
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={onPress}
       style={{
         flexDirection: 'row', alignItems: 'flex-start', gap: 12,
         paddingVertical: 14, paddingHorizontal: 16,

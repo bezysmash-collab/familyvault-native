@@ -31,15 +31,17 @@ const supabase = createClient(
 let cachedJwt: string | null = null
 let jwtCreatedAt = 0
 
-function verifySecret(req: Request): boolean {
-  const secret = Deno.env.get('WEBHOOK_SECRET')
-  if (!secret) return true // dev: skip when secret not configured
-  return req.headers.get('x-webhook-secret') === secret
+// Supabase "Edge Functions" webhook type sends Authorization: Bearer <service_role_key>
+function verifyRequest(req: Request): boolean {
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!serviceRoleKey) return true
+  const auth = req.headers.get('authorization') ?? ''
+  return auth === `Bearer ${serviceRoleKey}`
 }
 
 Deno.serve(async (req) => {
   try {
-    if (!verifySecret(req)) {
+    if (!verifyRequest(req)) {
       return new Response('Unauthorized', { status: 401 })
     }
     const body = await req.json()

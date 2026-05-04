@@ -59,5 +59,24 @@ export function useTasks() {
       .eq('id', taskId)
   }, [])
 
-  return { tasks, loading, createTask, toggleDone, refresh: fetchTasks }
+  const updateTask = useCallback(async (taskId: string, updates: {
+    title?: string; assignedTo?: string | null; dueDate?: string | null; spaceId?: string | null
+  }) => {
+    const { error } = await supabase.from('tasks').update({
+      ...(updates.title       !== undefined && { title:       updates.title }),
+      ...(updates.assignedTo  !== undefined && { assigned_to: updates.assignedTo }),
+      ...(updates.dueDate     !== undefined && { due_date:    updates.dueDate }),
+      ...(updates.spaceId     !== undefined && { space_id:    updates.spaceId }),
+    }).eq('id', taskId)
+    if (!error) fetchTasks()
+    return { error }
+  }, [fetchTasks])
+
+  const deleteTask = useCallback(async (taskId: string) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    if (!error) setTasks((prev) => prev.filter((t) => t.id !== taskId))
+    return { error }
+  }, [])
+
+  return { tasks, loading, createTask, toggleDone, updateTask, deleteTask, refresh: fetchTasks }
 }

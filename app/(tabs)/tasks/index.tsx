@@ -10,14 +10,16 @@ import { useSpaces } from '../../../hooks/useSpaces'
 import { useContentHeight } from '../../../hooks/useContentHeight'
 import { useAuth } from '../../../hooks/useAuth'
 import TaskRow from '../../../components/tasks/TaskRow'
+import TaskDetail from '../../../components/tasks/TaskDetail'
 import Avatar from '../../../components/shared/Avatar'
 
 export default function TasksScreen() {
-  const { tasks, loading, createTask, toggleDone } = useTasks()
+  const { tasks, loading, createTask, toggleDone, updateTask, deleteTask } = useTasks()
   const { profiles } = useProfiles()
   const { spaces }   = useSpaces()
   const { profile: me } = useAuth()
   const contentHeight = useContentHeight()
+  const [selectedTask, setSelectedTask] = useState<any>(null)
 
   const [filter,   setFilter]   = useState<'pending' | 'mine' | 'done'>('pending')
   const [showForm, setShowForm] = useState(false)
@@ -104,7 +106,7 @@ export default function TasksScreen() {
       ) : (
         <ScrollView style={{ height: contentHeight - 49 }} contentContainerStyle={{ paddingBottom: 100 }}>
           {shown.map((item) => (
-            <TaskRow key={item.id} task={item} onToggle={() => toggleDone(item.id, item.done)} />
+            <TaskRow key={item.id} task={item} onPress={() => setSelectedTask(item)} />
           ))}
         </ScrollView>
       )}
@@ -234,6 +236,17 @@ export default function TasksScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <TaskDetail
+        task={selectedTask}
+        profiles={profiles}
+        spaces={spaces}
+        visible={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onUpdate={updateTask}
+        onToggle={toggleDone}
+        onDelete={deleteTask}
+      />
     </View>
   )
 }

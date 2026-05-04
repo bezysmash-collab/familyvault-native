@@ -112,8 +112,20 @@ export function usePosts(spaceId: string | null = null) {
       .channel(channelId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
         if (spaceId && payload.new.space_id !== spaceId) return
-        const { data } = await supabase.from('posts').select(POST_QUERY).eq('id', payload.new.id).single()
+        const attachmentPath = payload.new.attachment?.path
+        const [{ data }, signedResult] = await Promise.all([
+          supabase.from('posts').select(POST_QUERY).eq('id', payload.new.id).single(),
+          attachmentPath
+            ? supabase.storage.from('attachments').createSignedUrl(attachmentPath, SIGNED_URL_TTL)
+            : Promise.resolve(null),
+        ])
         if (!data) return
+        if (attachmentPath && signedResult?.data?.signedUrl) {
+          signedUrlCache.set(attachmentPath, {
+            url: signedResult.data.signedUrl,
+            expiresAt: Date.now() + SIGNED_URL_TTL * 1000,
+          })
+        }
         const [hydrated] = await hydrateSignedUrls([data])
         setPosts((prev) => [hydrated, ...prev])
       })

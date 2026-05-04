@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react'
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal } from 'react-native'
 import { Image } from 'expo-image'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import Avatar from '../shared/Avatar'
@@ -41,6 +41,7 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [draft,        setDraft]        = useState('')
   const [submitting,   setSubmitting]   = useState(false)
+  const [fullscreen,   setFullscreen]   = useState(false)
 
   const myReaction = post.reactions?.find((r: any) => r.user_id === currentUserId)
   const current    = REACTIONS.find((r) => r.key === myReaction?.type)
@@ -82,14 +83,32 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
 
       {/* Attachments */}
       {post.type === 'photo' && post.attachment?.url && (
-        <View className="mx-4 mb-3 rounded-xl overflow-hidden bg-slate-100">
-          <Image
-            source={{ uri: post.attachment.url }}
-            style={{ width: '100%', height: 220 }}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-          />
-        </View>
+        <>
+          <Pressable onPress={() => setFullscreen(true)} className="mx-4 mb-3 rounded-xl overflow-hidden" style={{ backgroundColor: '#1e293b' }}>
+            <Image
+              source={{ uri: post.attachment.url }}
+              style={{ width: '100%', height: 280 }}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            />
+          </Pressable>
+          <Modal visible={fullscreen} transparent animationType="fade" onRequestClose={() => setFullscreen(false)}>
+            <Pressable
+              style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setFullscreen(false)}
+            >
+              <Image
+                source={{ uri: post.attachment.url }}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+              <View style={{ position: 'absolute', top: 52, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>✕</Text>
+              </View>
+            </Pressable>
+          </Modal>
+        </>
       )}
       {post.type === 'video' && post.attachment?.url && (
         <View className="mx-4 mb-3 rounded-xl overflow-hidden bg-black">
