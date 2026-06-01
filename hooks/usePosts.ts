@@ -4,7 +4,6 @@ import { randomUUID } from '../lib/uuid'
 
 const SIGNED_URL_TTL = 7200
 const PAGE_SIZE = 20
-// Re-sign a URL when it has less than 10 minutes of TTL remaining
 const RENEW_BEFORE_EXPIRY_MS = 10 * 60 * 1000
 
 const POST_QUERY = `
@@ -18,19 +17,36 @@ const POST_QUERY = `
 // Module-level signed URL cache: path → { url, expiresAt (ms) }
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
+// Collect all storage paths that need signing from a list of posts.
+// attachment may be a single object { path } (old single-item posts)
+// or an array [{ path, ... }] (new multi-media posts).
+function collectPaths(posts: any[]): string[] {
+  const now = Date.now()
+  const paths: string[] = []
+  for (const p of posts) {
+    if (!['photo', 'video', 'file', 'media'].includes(p.type)) continue
+    if (Array.isArray(p.attachment)) {
+      for (const item of p.attachment) {
+        if (!item?.path) continue
+        const cached = signedUrlCache.get(item.path)
+        if (!cached || cached.expiresAt - now < RENEW_BEFORE_EXPIRY_MS) paths.push(item.path)
+      }
+    } else if (p.attachment?.path) {
+      const cached = signedUrlCache.get(p.attachment.path)
+      if (!cached || cached.expiresAt - now < RENEW_BEFORE_EXPIRY_MS) paths.push(p.attachment.path)
+    }
+  }
+  return paths
+}
+
 async function hydrateSignedUrls(posts: any[]): Promise<any[]> {
   const now = Date.now()
-  const needsSigning = posts.filter((p) => {
-    if (!p.attachment?.path || !['photo', 'video', 'file'].includes(p.type)) return false
-    const cached = signedUrlCache.get(p.attachment.path)
-    return !cached || cached.expiresAt - now < RENEW_BEFORE_EXPIRY_MS
-  })
+  const needsSigning = collectPaths(posts)
 
   if (needsSigning.length > 0) {
-    const paths = needsSigning.map((p) => p.attachment.path)
     const { data: signed } = await supabase.storage
       .from('attachments')
-      .createSignedUrls(paths, SIGNED_URL_TTL)
+      .createSignedUrls(needsSigning, SIGNED_URL_TTL)
     const expiresAt = now + SIGNED_URL_TTL * 1000
     ;(signed || []).forEach((s: any) => {
       signedUrlCache.set(s.path, { url: s.signedUrl, expiresAt })
@@ -38,10 +54,24 @@ async function hydrateSignedUrls(posts: any[]): Promise<any[]> {
   }
 
   return posts.map((p) => {
+    if (Array.isArray(p.attachment)) {
+      const hydratedAttachment = p.attachment.map((item: any) => {
+        const cached = signedUrlCache.get(item.path)
+        return cached ? { ...item, url: cached.url } : item
+      })
+      return { ...p, attachment: hydratedAttachment }
+    }
     const cached = signedUrlCache.get(p.attachment?.path)
     if (!cached) return p
     return { ...p, attachment: { ...p.attachment, url: cached.url } }
   })
+}
+
+export interface MediaFileInput {
+  uri:       string
+  name:      string
+  mimeType:  string
+  mediaType: 'photo' | 'video'
 }
 
 export function usePosts(spaceId: string | null = null) {
@@ -60,7 +90,6 @@ export function usePosts(spaceId: string | null = null) {
   const userIdRef = useRef<string | null>(null)
   useEffect(() => { postsRef.current = posts }, [posts])
 
-  // Cache the user ID once on mount — avoids an auth round-trip on every react()
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       userIdRef.current = user?.id ?? null
@@ -112,18 +141,27 @@ export function usePosts(spaceId: string | null = null) {
       .channel(channelId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
         if (spaceId && payload.new.space_id !== spaceId) return
-        const attachmentPath = payload.new.attachment?.path
+
+        // Pre-warm cache for all media paths on the new post
+        const rawAttachment = payload.new.attachment
+        const pathsToSign: string[] = []
+        if (Array.isArray(rawAttachment)) {
+          rawAttachment.forEach((item: any) => { if (item?.path) pathsToSign.push(item.path) })
+        } else if (rawAttachment?.path) {
+          pathsToSign.push(rawAttachment.path)
+        }
+
         const [{ data }, signedResult] = await Promise.all([
           supabase.from('posts').select(POST_QUERY).eq('id', payload.new.id).single(),
-          attachmentPath
-            ? supabase.storage.from('attachments').createSignedUrl(attachmentPath, SIGNED_URL_TTL)
+          pathsToSign.length > 0
+            ? supabase.storage.from('attachments').createSignedUrls(pathsToSign, SIGNED_URL_TTL)
             : Promise.resolve(null),
         ])
         if (!data) return
-        if (attachmentPath && signedResult?.data?.signedUrl) {
-          signedUrlCache.set(attachmentPath, {
-            url: signedResult.data.signedUrl,
-            expiresAt: Date.now() + SIGNED_URL_TTL * 1000,
+        if (signedResult?.data) {
+          const expiresAt = Date.now() + SIGNED_URL_TTL * 1000
+          ;(signedResult.data as any[]).forEach((s: any) => {
+            signedUrlCache.set(s.path, { url: s.signedUrl, expiresAt })
           })
         }
         const [hydrated] = await hydrateSignedUrls([data])
@@ -161,7 +199,6 @@ export function usePosts(spaceId: string | null = null) {
         const r = payload.new
         setPosts((prev) => prev.map((p) => {
           if (p.id !== r.post_id) return p
-          // Replace optimistic placeholder from the current user, or append from others
           const reactions = (p.reactions || []).some(
             (x: any) => x.id.startsWith('opt-') && x.user_id === r.user_id
           )
@@ -190,30 +227,69 @@ export function usePosts(spaceId: string | null = null) {
       })
       .subscribe()
 
-    return () => supabase.removeChannel(channel)
+    return () => { supabase.removeChannel(channel) }
   }, [spaceId, channelId])
 
   const createPost = useCallback(async ({
-    content, spaceId: sid, type = 'text', file = null,
+    content,
+    spaceId: sid,
+    // For photo/video attachments — supports 1 or many
+    mediaFiles = [],
+    // For single document/file attachments
+    file = null,
   }: {
-    content: string; spaceId?: string | null; type?: string
-    file?: { uri: string; name: string; type: string } | null
+    content:    string
+    spaceId?:   string | null
+    mediaFiles?: MediaFileInput[]
+    file?:      { uri: string; name: string; type: string } | null
   }) => {
-    let attachment = null
-    if (file) {
+    let attachment: any = null
+    let postType = 'text'
+
+    if (mediaFiles.length > 0) {
+      // Upload all media files in parallel
+      const uploaded = await Promise.all(
+        mediaFiles.map(async (mf) => {
+          const ext  = (mf.name ?? 'upload').split('.').pop() ?? 'bin'
+          const path = `${randomUUID()}.${ext}`
+          const arrayBuffer = await fetch(mf.uri).then((r) => r.arrayBuffer())
+          const { error: uploadError } = await supabase.storage
+            .from('attachments')
+            .upload(path, arrayBuffer, { contentType: mf.mimeType })
+          if (uploadError) throw uploadError
+          return { path, name: mf.name, mime_type: mf.mimeType, type: mf.mediaType }
+        })
+      )
+
+      if (uploaded.length === 1) {
+        // Single item — use old object format for backward compat
+        attachment = { path: uploaded[0].path, name: uploaded[0].name, mime_type: uploaded[0].mime_type }
+        postType   = uploaded[0].type  // 'photo' or 'video'
+      } else {
+        // Multiple items — store as array, type = 'media'
+        attachment = uploaded
+        postType   = 'media'
+      }
+    } else if (file) {
       const ext  = (file.name ?? 'upload').split('.').pop() ?? 'bin'
       const path = `${randomUUID()}.${ext}`
-      // fetch().arrayBuffer() works in React Native/Hermes; new File() does not
       const arrayBuffer = await fetch(file.uri).then((r) => r.arrayBuffer())
       const { error: uploadError } = await supabase.storage
         .from('attachments')
         .upload(path, arrayBuffer, { contentType: file.type })
       if (uploadError) return { error: uploadError }
       attachment = { path, name: file.name, mime_type: file.type }
+      postType   = 'file'
     }
+
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: new Error('Not authenticated') }
     const { error } = await supabase.from('posts').insert({
-      author_id: user.id, space_id: sid || null, content, type, attachment,
+      author_id: user.id,
+      space_id:  sid || null,
+      content,
+      type:      postType,
+      attachment,
     })
     return { error }
   }, [])
@@ -228,7 +304,6 @@ export function usePosts(spaceId: string | null = null) {
 
     if (existing) {
       if (existing.type === reactionType) {
-        // Optimistically remove
         setPosts((prev) => prev.map((p) =>
           p.id === postId
             ? { ...p, reactions: p.reactions.filter((r: any) => r.id !== existing.id) }
@@ -243,7 +318,6 @@ export function usePosts(spaceId: string | null = null) {
           ))
         }
       } else {
-        // Optimistically update type
         setPosts((prev) => prev.map((p) =>
           p.id === postId
             ? { ...p, reactions: p.reactions.map((r: any) => r.id === existing.id ? { ...r, type: reactionType } : r) }
@@ -259,7 +333,6 @@ export function usePosts(spaceId: string | null = null) {
         }
       }
     } else {
-      // Optimistically insert with a placeholder ID
       const tempId = `opt-${Date.now()}`
       const optimistic = {
         id: tempId, post_id: postId, user_id: userId,
@@ -278,12 +351,12 @@ export function usePosts(spaceId: string | null = null) {
             : p
         ))
       }
-      // The realtime INSERT event replaces the opt- placeholder with the real server row
     }
   }, [])
 
   const addComment = useCallback(async (postId: string, content: string) => {
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: new Error('Not authenticated') }
     const { error } = await supabase.from('comments').insert({ post_id: postId, author_id: user.id, content })
     return { error }
   }, [])

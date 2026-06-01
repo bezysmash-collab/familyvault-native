@@ -13,10 +13,12 @@
  *   APNS_TEAM_ID       – your Apple Developer team ID
  *   APNS_BUNDLE_ID     – com.app.familyvault
  *   APNS_PRIVATE_KEY   – contents of the .p8 file (with literal \n newlines)
- *   WEBHOOK_SECRET     – shared secret; add as custom header "x-webhook-secret: <value>"
- *                        in each Supabase webhook (Edit webhook → HTTP Headers → Add header)
  *   SUPABASE_SERVICE_ROLE_KEY – set automatically by Supabase
  *   SUPABASE_URL              – set automatically by Supabase
+ *
+ * Webhook setup: in Supabase Dashboard → Database → Webhooks, use the
+ * "Edge Functions" webhook type (not a custom HTTP URL). Supabase automatically
+ * sends Authorization: Bearer <service_role_key> for that type.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -31,12 +33,19 @@ const supabase = createClient(
 let cachedJwt: string | null = null
 let jwtCreatedAt = 0
 
-// Supabase "Edge Functions" webhook type sends Authorization: Bearer <service_role_key>
+// Requires the service role key in Authorization header.
+// Supabase "Edge Functions" webhook type sends this automatically.
+// If you're using a custom HTTP webhook, add the header manually.
 function verifyRequest(req: Request): boolean {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   if (!serviceRoleKey) return true
   const auth = req.headers.get('authorization') ?? ''
-  return auth === `Bearer ${serviceRoleKey}`
+  const ok = auth === `Bearer ${serviceRoleKey}`
+  if (!ok) {
+    console.error('push-notify: unauthorized request. auth header:', auth.slice(0, 20) + '…')
+    console.error('Expected Bearer <service_role_key>. Is the webhook using the "Edge Functions" type?')
+  }
+  return ok
 }
 
 Deno.serve(async (req) => {
@@ -46,8 +55,10 @@ Deno.serve(async (req) => {
     }
     const body = await req.json()
     const { type, table, record, old_record } = body
+    console.log(`push-notify: ${type} on ${table}`, record?.id)
 
     const notifications = await buildNotifications(type, table, record, old_record)
+    console.log(`push-notify: ${notifications.length} notification(s) to send`)
 
     await Promise.all(
       notifications.map(({ userId, prefKey, title, body, data }) =>
@@ -160,26 +171,43 @@ async function buildNotifications(
 async function sendToUser(
   userId: string, prefKey: string, title: string, body: string, data: Record<string, string>
 ) {
-  // Check this user's notification preferences
+  // Check this user's notification preferences.
+  // maybeSingle() returns null (not an error) when no row exists.
+  // If no prefs row exists, default to sending (don't silently drop the notification).
   const { data: prefs } = await supabase
     .from('notification_preferences')
     .select(prefKey)
     .eq('user_id', userId)
-    .single()
-  if (!prefs?.[prefKey]) return // user opted out
+    .maybeSingle()
 
-  // Get all device tokens for this user
+  if (prefs !== null && !prefs[prefKey]) {
+    console.log(`push-notify: user ${userId} has ${prefKey} disabled`)
+    return
+  }
+
+  // Get all device tokens for this user, including the APNs environment
   const { data: tokens } = await supabase
     .from('device_tokens')
-    .select('token')
+    .select('token, apns_env')
     .eq('user_id', userId)
-  if (!tokens?.length) return
+
+  if (!tokens?.length) {
+    console.log(`push-notify: no device tokens for user ${userId}`)
+    return
+  }
 
   const jwt = await getApnsJwt()
 
   await Promise.all(
-    tokens.map(({ token }) =>
-      fetch(`https://api.push.apple.com/3/device/${token}`, {
+    tokens.map(({ token, apns_env }) => {
+      // Route to the correct APNs environment based on how the token was registered.
+      // Sandbox tokens (dev builds) must use api.sandbox.push.apple.com.
+      // Production tokens (release/preview builds) use api.push.apple.com.
+      const apnsHost = apns_env === 'sandbox'
+        ? 'api.sandbox.push.apple.com'
+        : 'api.push.apple.com'
+
+      return fetch(`https://${apnsHost}/3/device/${token}`, {
         method: 'POST',
         headers: {
           authorization:    `bearer ${jwt}`,
@@ -198,14 +226,15 @@ async function sendToUser(
       }).then(async (res) => {
         if (!res.ok) {
           const text = await res.text()
-          console.error(`APNs error for token ${token.slice(0, 8)}…:`, res.status, text)
-          // Remove invalid tokens (APNs returns 410 Gone for unregistered tokens)
+          console.error(`APNs [${apnsHost}] error for token ${token.slice(0, 8)}…:`, res.status, text)
           if (res.status === 410) {
             await supabase.from('device_tokens').delete().eq('token', token)
           }
+        } else {
+          console.log(`APNs [${apnsHost}]: delivered to token ${token.slice(0, 8)}…`)
         }
       })
-    )
+    })
   )
 }
 

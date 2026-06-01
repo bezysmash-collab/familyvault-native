@@ -6,6 +6,9 @@ import { supabase } from '../lib/supabase'
 /**
  * Registers the device APNs token with Supabase for the given user.
  * Safe to call on every app launch — uses upsert on the unique (user_id, token) constraint.
+ *
+ * apns_env: development builds (expo run:ios, dev EAS) use APNs sandbox;
+ * release/preview/production EAS builds use APNs production.
  */
 export async function registerPushToken(userId: string) {
   if (Platform.OS !== 'ios') return
@@ -21,8 +24,12 @@ export async function registerPushToken(userId: string) {
     return
   }
 
+  // __DEV__ is true for Metro dev-server builds (development provisioning → APNs sandbox).
+  // Release/preview/production EAS builds have __DEV__ = false (ad-hoc/App Store → APNs production).
+  const apnsEnv = __DEV__ ? 'sandbox' : 'production'
+
   await supabase.from('device_tokens').upsert(
-    { user_id: userId, token, platform: 'ios' },
+    { user_id: userId, token, platform: 'ios', apns_env: apnsEnv },
     { onConflict: 'user_id,token' }
   )
 }

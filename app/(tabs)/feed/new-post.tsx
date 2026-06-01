@@ -7,24 +7,41 @@ import { router } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { usePosts } from '../../../hooks/usePosts'
+import { usePosts, MediaFileInput } from '../../../hooks/usePosts'
 import { useSpaces } from '../../../hooks/useSpaces'
 
-type PostType = 'text' | 'photo' | 'video' | 'file' | 'link'
+const MAX_MEDIA = 10
 
 export default function NewPostScreen() {
-  const { createPost }          = usePosts()
-  const { spaces }              = useSpaces()
-  const [content,  setContent]  = useState('')
-  const [spaceId,  setSpaceId]  = useState<string | null>(null)
-  const [postType, setPostType] = useState<PostType>('text')
-  const [file,     setFile]     = useState<any>(null)
-  const [linkUrl,  setLinkUrl]  = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const { createPost }            = usePosts()
+  const { spaces }                = useSpaces()
+  const [content,  setContent]    = useState('')
+  const [spaceId,  setSpaceId]    = useState<string | null>(null)
+  const [mediaItems, setMediaItems] = useState<MediaFileInput[]>([])
+  const [file,     setFile]       = useState<any>(null)
+  const [linkUrl,  setLinkUrl]    = useState('')
+  const [loading,  setLoading]    = useState(false)
 
-  const clearAttachment = () => { setFile(null); setLinkUrl(''); setPostType('text') }
+  const hasMedia = mediaItems.length > 0
+  const hasFile  = !!file
+  const hasLink  = !!linkUrl
+
+  const clearFile  = () => { setFile(null); setLinkUrl('') }
+  const clearMedia = () => setMediaItems([])
+
+  const removeMediaItem = (index: number) =>
+    setMediaItems((prev) => prev.filter((_, i) => i !== index))
+
+  const addMediaItems = (items: MediaFileInput[]) => {
+    if (hasFile || hasLink) { clearFile() }
+    setMediaItems((prev) => {
+      const remaining = MAX_MEDIA - prev.length
+      return [...prev, ...items.slice(0, remaining)]
+    })
+  }
 
   const pickFromCamera = async () => {
+    if (mediaItems.length >= MAX_MEDIA) return
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Camera access required', 'Allow camera access in Settings to take photos.')
@@ -37,55 +54,73 @@ export default function NewPostScreen() {
     if (!result.canceled) {
       const asset = result.assets[0]
       const isVideo = asset.type === 'video'
-      setFile({
-        uri:  asset.uri,
-        name: asset.fileName ?? (isVideo ? 'capture.mp4' : 'capture.jpg'),
-        type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
-      })
-      setPostType(isVideo ? 'video' : 'photo')
+      addMediaItems([{
+        uri:       asset.uri,
+        name:      asset.fileName ?? (isVideo ? 'capture.mp4' : 'capture.jpg'),
+        mimeType:  asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
+        mediaType: isVideo ? 'video' : 'photo',
+      }])
     }
   }
 
-  const pickFromLibrary = async (mediaType: 'photo' | 'video') => {
+  const pickPhotosFromLibrary = async () => {
+    if (mediaItems.length >= MAX_MEDIA) return
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: mediaType === 'photo'
-        ? ImagePicker.MediaTypeOptions.Images
-        : ImagePicker.MediaTypeOptions.Videos,
-      quality: 0.8,
+      mediaTypes:             ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality:                0.8,
+      selectionLimit:         MAX_MEDIA - mediaItems.length,
+    })
+    if (!result.canceled) {
+      addMediaItems(result.assets.map((asset) => ({
+        uri:       asset.uri,
+        name:      asset.fileName ?? 'upload.jpg',
+        mimeType:  asset.mimeType ?? 'image/jpeg',
+        mediaType: 'photo',
+      })))
+    }
+  }
+
+  const pickVideoFromLibrary = async () => {
+    if (mediaItems.length >= MAX_MEDIA) return
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality:    0.8,
     })
     if (!result.canceled) {
       const asset = result.assets[0]
-      setFile({
-        uri:  asset.uri,
-        name: asset.fileName ?? (mediaType === 'photo' ? 'upload.jpg' : 'upload.mp4'),
-        type: asset.mimeType,
-      })
-      setPostType(mediaType)
+      addMediaItems([{
+        uri:       asset.uri,
+        name:      asset.fileName ?? 'upload.mp4',
+        mimeType:  asset.mimeType ?? 'video/mp4',
+        mediaType: 'video',
+      }])
     }
   }
 
   const pickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true })
     if (!result.canceled) {
+      clearMedia()
       setFile(result.assets[0])
-      setPostType('file')
+      setLinkUrl('')
     }
   }
 
   const handlePost = async () => {
-    const hasContent = content.trim() || file || (postType === 'link' && linkUrl.trim())
+    const hasContent = content.trim() || hasMedia || hasFile || (hasLink && linkUrl.trim())
     if (!hasContent || loading) return
     setLoading(true)
     try {
-      const finalContent = postType === 'link'
+      const finalContent = hasLink
         ? (content.trim() ? `${content.trim()}\n${linkUrl.trim()}` : linkUrl.trim())
         : content.trim()
 
       const { error } = await createPost({
-        content: finalContent,
+        content:    finalContent,
         spaceId,
-        type: file ? postType : postType === 'link' ? 'link' : 'text',
-        file: file ? { uri: file.uri, name: file.name, type: file.type ?? 'application/octet-stream' } : null,
+        mediaFiles: hasMedia ? mediaItems : [],
+        file:       hasFile ? { uri: file.uri, name: file.name, type: file.type ?? 'application/octet-stream' } : null,
       })
 
       if (error) { Alert.alert('Error', error.message); return }
@@ -99,15 +134,26 @@ export default function NewPostScreen() {
 
   const selectedSpace = spaces.find(s => s.id === spaceId)
   const postLabel     = selectedSpace ? `Post to ${selectedSpace.emoji} ${selectedSpace.name}` : 'Post to Family'
-  const canPost       = !loading && !!(content.trim() || file || (postType === 'link' && linkUrl.trim()))
+  const canPost       = !loading && !!(content.trim() || hasMedia || hasFile || (hasLink && linkUrl.trim()))
 
   const TOOLBAR = [
     { key: 'camera', emoji: '📷', label: 'Camera', onPress: pickFromCamera },
-    { key: 'photo',  emoji: '🖼️', label: 'Photo',  onPress: () => pickFromLibrary('photo') },
-    { key: 'video',  emoji: '🎬', label: 'Video',  onPress: () => pickFromLibrary('video') },
-    { key: 'link',   emoji: '🔗', label: 'Link',   onPress: () => { clearAttachment(); setPostType('link') } },
+    { key: 'photo',  emoji: '🖼️', label: 'Photos', onPress: pickPhotosFromLibrary },
+    { key: 'video',  emoji: '🎬', label: 'Video',  onPress: pickVideoFromLibrary },
+    { key: 'link',   emoji: '🔗', label: 'Link',   onPress: () => { clearMedia(); clearFile(); setLinkUrl(' ') } },
     { key: 'file',   emoji: '📎', label: 'File',   onPress: pickFile },
   ]
+
+  const mediaActive = hasMedia
+  const linkActive  = hasLink
+  const fileActive  = hasFile
+
+  const toolbarActive = (key: string) => {
+    if (['camera', 'photo', 'video'].includes(key)) return mediaActive
+    if (key === 'link') return linkActive
+    if (key === 'file') return fileActive
+    return false
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -136,11 +182,11 @@ export default function NewPostScreen() {
           />
 
           {/* Link URL input */}
-          {postType === 'link' && !file && (
+          {hasLink && !hasMedia && (
             <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 12, paddingVertical: 10 }}>
               <Text style={{ fontSize: 18, marginRight: 8 }}>🔗</Text>
               <TextInput
-                value={linkUrl}
+                value={linkUrl.trim()}
                 onChangeText={setLinkUrl}
                 placeholder="https://"
                 placeholderTextColor="#94a3b8"
@@ -150,37 +196,79 @@ export default function NewPostScreen() {
                 style={{ flex: 1, fontSize: 15, color: '#1e293b' }}
                 autoFocus
               />
-              <Pressable onPress={clearAttachment} style={{ paddingLeft: 8 }}>
+              <Pressable onPress={() => { clearFile(); setLinkUrl('') }} style={{ paddingLeft: 8 }}>
                 <Text style={{ color: '#94a3b8', fontSize: 18 }}>✕</Text>
               </Pressable>
             </View>
           )}
 
-          {/* Attachment preview */}
-          {file && (
+          {/* File attachment */}
+          {hasFile && (
             <View style={{ marginTop: 12 }}>
-              {postType === 'photo' && (
-                <View style={{ borderRadius: 16, overflow: 'hidden', backgroundColor: '#f1f5f9' }}>
-                  <Image source={{ uri: file.uri }} style={{ width: '100%', height: 220 }} resizeMode="cover" />
-                </View>
-              )}
-              {postType === 'video' && (
-                <View style={{ backgroundColor: '#f1f5f9', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 24 }}>🎬</Text>
-                  <Text style={{ color: '#475569', fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
-                </View>
-              )}
-              {postType === 'file' && (
-                <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 24 }}>📎</Text>
-                  <Text style={{ color: '#475569', fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
-                </View>
-              )}
+              <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 24 }}>📎</Text>
+                <Text style={{ color: '#475569', fontSize: 14, flex: 1 }} numberOfLines={1}>{file.name}</Text>
+              </View>
               <Pressable
-                onPress={clearAttachment}
-                style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}
+                onPress={clearFile}
+                style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>✕</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Media thumbnails strip */}
+          {hasMedia && (
+            <View style={{ marginTop: 12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
+                {mediaItems.map((item, index) => (
+                  <View key={index} style={{ width: 90, height: 90, borderRadius: 12, overflow: 'hidden', backgroundColor: '#1e293b' }}>
+                    {item.mediaType === 'photo' ? (
+                      <Image source={{ uri: item.uri }} style={{ width: 90, height: 90 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                        <Text style={{ fontSize: 26 }}>🎬</Text>
+                        <Text style={{ color: '#94a3b8', fontSize: 10 }} numberOfLines={1}>{item.name}</Text>
+                      </View>
+                    )}
+                    {/* Remove button */}
+                    <Pressable
+                      onPress={() => removeMediaItem(index)}
+                      style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' }}
+                      hitSlop={8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', lineHeight: 13 }}>✕</Text>
+                    </Pressable>
+                    {/* Video badge */}
+                    {item.mediaType === 'video' && (
+                      <View style={{ position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>VIDEO</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+
+                {/* Add more button — shown when under the limit */}
+                {mediaItems.length < MAX_MEDIA && (
+                  <Pressable
+                    onPress={pickPhotosFromLibrary}
+                    style={{ width: 90, height: 90, borderRadius: 12, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                  >
+                    <Text style={{ fontSize: 22, color: '#94a3b8' }}>+</Text>
+                    <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '600' }}>Add more</Text>
+                  </Pressable>
+                )}
+              </ScrollView>
+
+              {/* Count badge */}
+              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+                {mediaItems.length} / {MAX_MEDIA} items
+              </Text>
+
+              {/* Clear all */}
+              <Pressable onPress={clearMedia} style={{ marginTop: 4 }}>
+                <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Remove all</Text>
               </Pressable>
             </View>
           )}
@@ -215,21 +303,21 @@ export default function NewPostScreen() {
 
         {/* Attachment toolbar */}
         <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6, gap: 6 }}>
-          {TOOLBAR.map((btn) => (
-            <Pressable
-              key={btn.key}
-              onPress={btn.onPress}
-              style={{
-                flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12,
-                backgroundColor: postType === btn.key ? '#f1f5f9' : 'transparent',
-              }}
-            >
-              <Text style={{ fontSize: 22 }}>{btn.emoji}</Text>
-              <Text style={{ fontSize: 11, color: postType === btn.key ? '#0f172a' : '#94a3b8', marginTop: 2, fontWeight: postType === btn.key ? '600' : '400' }}>
-                {btn.label}
-              </Text>
-            </Pressable>
-          ))}
+          {TOOLBAR.map((btn) => {
+            const active = toolbarActive(btn.key)
+            return (
+              <Pressable
+                key={btn.key}
+                onPress={btn.onPress}
+                style={{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12, backgroundColor: active ? '#f1f5f9' : 'transparent' }}
+              >
+                <Text style={{ fontSize: 22 }}>{btn.emoji}</Text>
+                <Text style={{ fontSize: 11, color: active ? '#0f172a' : '#94a3b8', marginTop: 2, fontWeight: active ? '600' : '400' }}>
+                  {btn.label}
+                </Text>
+              </Pressable>
+            )
+          })}
         </View>
 
         {/* Post button */}

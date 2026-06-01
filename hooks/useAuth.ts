@@ -19,8 +19,12 @@ export function useAuth() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id)
-      else setLoading(false)
+      if (session) {
+        fetchProfile(session.user.id)
+        registerPushToken(session.user.id)
+      } else {
+        setLoading(false)
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {

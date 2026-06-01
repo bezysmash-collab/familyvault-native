@@ -1,5 +1,8 @@
-import { memo, useMemo, useState } from 'react'
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal } from 'react-native'
+import { memo, useMemo, useState, useCallback } from 'react'
+import {
+  View, Text, Pressable, TextInput, ScrollView, StyleSheet, Modal,
+  useWindowDimensions, FlatList,
+} from 'react-native'
 import { Image } from 'expo-image'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import Avatar from '../shared/Avatar'
@@ -7,27 +10,204 @@ import SpaceBadge from '../shared/SpaceBadge'
 import ReactionPicker from './ReactionPicker'
 import { timeAgo } from '../../lib/timeAgo'
 
-const VideoPlayer = memo(function VideoPlayer({ uri }: { uri: string }) {
+// ─── Video player ─────────────────────────────────────────────────────────────
+
+const VideoPlayer = memo(function VideoPlayer({ uri, style }: { uri: string; style?: any }) {
   const player = useVideoPlayer(uri, (p) => { p.loop = false })
   return (
     <VideoView
       player={player}
-      style={styles.video}
+      style={[styles.video, style]}
       contentFit="contain"
       nativeControls
     />
   )
 })
 
-const styles = StyleSheet.create({
-  video: { width: '100%', height: 220 },
+// ─── Media gallery (swipeable, with dot indicators) ───────────────────────────
+
+interface MediaItem {
+  url:       string
+  type:      string  // 'photo' | 'video'
+  mime_type?: string
+}
+
+interface GalleryProps {
+  items:        MediaItem[]
+  mediaWidth:   number
+  onFullscreen: (index: number) => void
+}
+
+const MediaGallery = memo(function MediaGallery({ items, mediaWidth, onFullscreen }: GalleryProps) {
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const handleScroll = useCallback((e: any) => {
+    if (mediaWidth <= 0) return
+    const index = Math.round(e.nativeEvent.contentOffset.x / mediaWidth)
+    setActiveIndex(Math.min(Math.max(index, 0), items.length - 1))
+  }, [mediaWidth, items.length])
+
+  return (
+    <View style={{ marginHorizontal: 16, marginBottom: items.length > 1 ? 4 : 12 }}>
+      <FlatList
+        data={items}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        bounces={false}
+        style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#1e293b' }}
+        getItemLayout={(_, index) => ({ length: mediaWidth, offset: mediaWidth * index, index })}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={({ item, index }) => (
+          <Pressable
+            onPress={() => onFullscreen(index)}
+            style={{ width: mediaWidth, height: 280, overflow: 'hidden' }}
+          >
+            {item.type === 'video'
+              ? <VideoPlayer uri={item.url} style={{ width: mediaWidth, height: 280 }} />
+              : (
+                <Image
+                  source={{ uri: item.url }}
+                  style={{ width: mediaWidth, height: 280 }}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                />
+              )
+            }
+          </Pressable>
+        )}
+      />
+
+      {/* Dot indicators */}
+      {items.length > 1 && (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8, marginBottom: 4, gap: 5 }}>
+          {items.map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: i === activeIndex ? 18 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: i === activeIndex ? '#0f172a' : '#cbd5e1',
+              }}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  )
 })
+
+// ─── Fullscreen swipeable modal ───────────────────────────────────────────────
+
+interface FullscreenModalProps {
+  items:         MediaItem[]
+  initialIndex:  number
+  onClose:       () => void
+}
+
+const FullscreenModal = memo(function FullscreenModal({ items, initialIndex, onClose }: FullscreenModalProps) {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions()
+  const [activeIndex, setActiveIndex] = useState(initialIndex)
+
+  const handleScroll = useCallback((e: any) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth)
+    setActiveIndex(Math.min(Math.max(index, 0), items.length - 1))
+  }, [screenWidth, items.length])
+
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <FlatList
+          data={items}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={initialIndex}
+          onMomentumScrollEnd={handleScroll}
+          bounces={false}
+          getItemLayout={(_, index) => ({ length: screenWidth, offset: screenWidth * index, index })}
+          keyExtractor={(_, i) => String(i)}
+          renderItem={({ item }) => (
+            <View style={{ width: screenWidth, height: screenHeight, alignItems: 'center', justifyContent: 'center' }}>
+              {item.type === 'video'
+                ? <VideoPlayer uri={item.url} style={{ width: screenWidth, height: screenHeight * 0.7 }} />
+                : (
+                  <Image
+                    source={{ uri: item.url }}
+                    style={{ width: screenWidth, height: screenHeight }}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                )
+              }
+            </View>
+          )}
+        />
+
+        {/* Close button */}
+        <Pressable
+          onPress={onClose}
+          style={{ position: 'absolute', top: 52, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>✕</Text>
+        </Pressable>
+
+        {/* Counter */}
+        {items.length > 1 && (
+          <View style={{ position: 'absolute', top: 56, left: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{activeIndex + 1} / {items.length}</Text>
+          </View>
+        )}
+
+        {/* Dot indicators */}
+        {items.length > 1 && (
+          <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+            {items.map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  width: i === activeIndex ? 20 : 7,
+                  height: 7,
+                  borderRadius: 3.5,
+                  backgroundColor: i === activeIndex ? '#fff' : 'rgba(255,255,255,0.4)',
+                }}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+    </Modal>
+  )
+})
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Normalise the post's attachment field into a consistent MediaItem array.
+// Old posts: attachment is an object { url, path, mime_type }, type is 'photo'|'video'
+// New posts: attachment is an array [{ url, path, mime_type, type }], type is 'media'
+function resolveMediaItems(post: any): MediaItem[] {
+  if (Array.isArray(post.attachment)) {
+    return post.attachment
+      .filter((item: any) => item?.url)
+      .map((item: any) => ({ url: item.url, type: item.type ?? 'photo', mime_type: item.mime_type }))
+  }
+  if (post.attachment?.url && (post.type === 'photo' || post.type === 'video')) {
+    return [{ url: post.attachment.url, type: post.type, mime_type: post.attachment.mime_type }]
+  }
+  return []
+}
+
+// ─── Reaction constants ───────────────────────────────────────────────────────
 
 const REACTIONS = [
   { key: 'like',    emoji: '👍' },
   { key: 'love',    emoji: '❤️' },
   { key: 'dislike', emoji: '👎' },
 ]
+
+// ─── PostCard ─────────────────────────────────────────────────────────────────
 
 interface Props {
   post:          any
@@ -37,14 +217,18 @@ interface Props {
 }
 
 function PostCard({ post, currentUserId, onReact, onComment }: Props) {
-  const [pickerOpen,   setPickerOpen]   = useState(false)
-  const [commentsOpen, setCommentsOpen] = useState(false)
-  const [draft,        setDraft]        = useState('')
-  const [submitting,   setSubmitting]   = useState(false)
-  const [fullscreen,   setFullscreen]   = useState(false)
+  const { width: screenWidth } = useWindowDimensions()
+  // Width inside the card after card outer margins (16 each side) and inner media margins (16 each side)
+  const mediaWidth = screenWidth - 64
 
-  const myReaction = post.reactions?.find((r: any) => r.user_id === currentUserId)
-  const current    = REACTIONS.find((r) => r.key === myReaction?.type)
+  const [pickerOpen,      setPickerOpen]      = useState(false)
+  const [commentsOpen,    setCommentsOpen]    = useState(false)
+  const [draft,           setDraft]           = useState('')
+  const [submitting,      setSubmitting]      = useState(false)
+  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null)
+
+  const myReaction     = post.reactions?.find((r: any) => r.user_id === currentUserId)
+  const current        = REACTIONS.find((r) => r.key === myReaction?.type)
   const totalReactions = post.reactions?.length || 0
 
   const reactionCounts = useMemo(() =>
@@ -54,6 +238,8 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
     [post.reactions]
   )
 
+  const mediaItems = useMemo(() => resolveMediaItems(post), [post.attachment, post.type])
+
   const handleComment = async () => {
     if (!draft.trim()) return
     setSubmitting(true)
@@ -61,6 +247,9 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
     setDraft('')
     setSubmitting(false)
   }
+
+  const openFullscreen = useCallback((index: number) => setFullscreenIndex(index), [])
+  const closeFullscreen = useCallback(() => setFullscreenIndex(null), [])
 
   return (
     <View className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-3 mx-4">
@@ -78,41 +267,25 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
         </View>
       </View>
 
-      {/* Content */}
-      <Text className="px-4 pb-3 text-slate-800 text-base leading-relaxed">{post.content}</Text>
-
-      {/* Attachments */}
-      {post.type === 'photo' && post.attachment?.url && (
-        <>
-          <Pressable onPress={() => setFullscreen(true)} className="mx-4 mb-3 rounded-xl overflow-hidden" style={{ backgroundColor: '#1e293b' }}>
-            <Image
-              source={{ uri: post.attachment.url }}
-              style={{ width: '100%', height: 280 }}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-            />
-          </Pressable>
-          <Modal visible={fullscreen} transparent animationType="fade" onRequestClose={() => setFullscreen(false)}>
-            <Pressable
-              style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setFullscreen(false)}
-            >
-              <Image
-                source={{ uri: post.attachment.url }}
-                style={{ width: '100%', height: '100%' }}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-              />
-              <View style={{ position: 'absolute', top: 52, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>✕</Text>
-              </View>
-            </Pressable>
-          </Modal>
-        </>
+      {/* Text content */}
+      {!!post.content && (
+        <Text className="px-4 pb-3 text-slate-800 text-base leading-relaxed">{post.content}</Text>
       )}
-      {post.type === 'video' && post.attachment?.url && (
-        <View className="mx-4 mb-3 rounded-xl overflow-hidden bg-black">
-          <VideoPlayer uri={post.attachment.url} />
+
+      {/* Media gallery — handles both single and multi-item posts */}
+      {mediaItems.length > 0 && (
+        <MediaGallery
+          items={mediaItems}
+          mediaWidth={mediaWidth}
+          onFullscreen={openFullscreen}
+        />
+      )}
+
+      {/* File attachment */}
+      {post.type === 'file' && post.attachment?.url && (
+        <View className="mx-4 mb-3 bg-slate-50 rounded-xl border border-slate-100 px-3 py-3 flex-row items-center gap-2">
+          <Text style={{ fontSize: 20 }}>📎</Text>
+          <Text className="text-slate-600 text-sm flex-1" numberOfLines={1}>{post.attachment.name}</Text>
         </View>
       )}
 
@@ -188,8 +361,21 @@ function PostCard({ post, currentUserId, onReact, onComment }: Props) {
         onSelect={(type) => onReact(post.id, type)}
         onClose={() => setPickerOpen(false)}
       />
+
+      {/* Fullscreen swipeable modal */}
+      {fullscreenIndex !== null && (
+        <FullscreenModal
+          items={mediaItems}
+          initialIndex={fullscreenIndex}
+          onClose={closeFullscreen}
+        />
+      )}
     </View>
   )
 }
+
+const styles = StyleSheet.create({
+  video: { width: '100%', height: 220 },
+})
 
 export default memo(PostCard)
