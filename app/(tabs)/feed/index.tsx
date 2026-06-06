@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react'
-import { ScrollView, View, Text, Pressable, ActivityIndicator, RefreshControl } from 'react-native'
-import { router } from 'expo-router'
+import { useCallback, useState, useEffect } from 'react'
+import { ScrollView, View, Text, Pressable, ActivityIndicator, RefreshControl, Modal, SafeAreaView } from 'react-native'
+import { router, useLocalSearchParams } from 'expo-router'
 import { usePosts } from '../../../hooks/usePosts'
 import { useSpaces } from '../../../hooks/useSpaces'
 import { useAuth } from '../../../hooks/useAuth'
@@ -16,7 +16,24 @@ export default function FeedScreen() {
   const [subHeaderHeight, setSubHeaderHeight] = useState(0)
   const contentHeight                       = useContentHeight()
   const scrollHeight                        = contentHeight > 0 ? contentHeight - subHeaderHeight : undefined
-  const { posts, loading, hasMore, loadingMore, react, addComment, loadMore, refresh } = usePosts(activeSpaceId)
+  const { posts, loading, hasMore, loadingMore, react, addComment, fetchPost, loadMore, refresh } = usePosts(activeSpaceId)
+
+  // Notification deep link — when the user taps a push notification for a post
+  const { notifPostId } = useLocalSearchParams<{ notifPostId?: string }>()
+  const [notifPost, setNotifPost] = useState<any>(null)
+
+  useEffect(() => {
+    if (!notifPostId) return
+    // Clear the param immediately so re-renders don't re-trigger
+    router.setParams({ notifPostId: undefined })
+    // Find in the already-loaded list first, else fetch from the server
+    const existing = posts.find((p) => p.id === notifPostId)
+    if (existing) {
+      setNotifPost(existing)
+    } else {
+      fetchPost(notifPostId).then((p) => { if (p) setNotifPost(p) })
+    }
+  }, [notifPostId])
 
   const renderPost = useCallback((item: any) => (
     <PostCard
@@ -104,6 +121,43 @@ export default function FeedScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* Focused post modal — opened when user taps a push notification */}
+      <Modal
+        visible={!!notifPost}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setNotifPost(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+          {/* Modal header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+            <View style={{ width: 44 }} />
+            <Text style={{ fontWeight: '700', fontSize: 16, color: '#0f172a' }}>Post</Text>
+            <Pressable onPress={() => setNotifPost(null)} hitSlop={12} style={{ width: 44, alignItems: 'flex-end' }}>
+              <Text style={{ color: '#64748b', fontSize: 16 }}>Close</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ paddingVertical: 12 }}>
+            {notifPost && (
+              <PostCard
+                post={notifPost}
+                currentUserId={profile?.id ?? ''}
+                onReact={(postId, type) => {
+                  react(postId, type)
+                  // Refresh the focused post so reactions update in the modal
+                  fetchPost(postId).then((p) => { if (p) setNotifPost(p) })
+                }}
+                onComment={async (postId, content) => {
+                  const result = await addComment(postId, content)
+                  fetchPost(postId).then((p) => { if (p) setNotifPost(p) })
+                  return result
+                }}
+              />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </View>
   )
 }

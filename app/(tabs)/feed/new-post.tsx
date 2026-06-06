@@ -159,13 +159,18 @@ export default function NewPostScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
 
-        {/* Header */}
+        {/* Header — Post button lives here so it's always visible above keyboard/picker */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
           <Pressable onPress={() => router.back()}>
             <Text style={{ color: '#64748b', fontSize: 16 }}>Cancel</Text>
           </Pressable>
           <Text style={{ fontWeight: '700', fontSize: 16, color: '#0f172a' }}>New Post</Text>
-          <View style={{ width: 56 }} />
+          <Pressable onPress={handlePost} disabled={!canPost} style={{ minWidth: 56, alignItems: 'flex-end' }}>
+            {loading
+              ? <ActivityIndicator size="small" color="#0f172a" />
+              : <Text style={{ color: canPost ? '#0f172a' : '#cbd5e1', fontWeight: '700', fontSize: 16 }}>Post</Text>
+            }
+          </Pressable>
         </View>
 
         <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16 }}>
@@ -318,20 +323,6 @@ export default function NewPostScreen() {
               </Pressable>
             )
           })}
-        </View>
-
-        {/* Post button */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
-          <Pressable
-            onPress={handlePost}
-            disabled={!canPost}
-            style={{ backgroundColor: canPost ? '#0f172a' : '#e2e8f0', borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={{ color: canPost ? '#fff' : '#94a3b8', fontWeight: '700', fontSize: 16 }}>{postLabel}</Text>
-            }
-          </Pressable>
         </View>
 
       </KeyboardAvoidingView>

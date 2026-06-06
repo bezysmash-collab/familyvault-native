@@ -354,6 +354,13 @@ export function usePosts(spaceId: string | null = null) {
     }
   }, [])
 
+  const fetchPost = useCallback(async (id: string) => {
+    const { data } = await supabase.from('posts').select(POST_QUERY).eq('id', id).single()
+    if (!data) return null
+    const [hydrated] = await hydrateSignedUrls([data])
+    return hydrated
+  }, [])
+
   const addComment = useCallback(async (postId: string, content: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: new Error('Not authenticated') }
@@ -361,5 +368,5 @@ export function usePosts(spaceId: string | null = null) {
     return { error }
   }, [])
 
-  return { posts, loading, error, hasMore, loadingMore, createPost, react, addComment, loadMore, refresh: fetchPosts }
+  return { posts, loading, error, hasMore, loadingMore, createPost, react, addComment, fetchPost, loadMore, refresh: fetchPosts }
 }
