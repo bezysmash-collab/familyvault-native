@@ -241,8 +241,16 @@ async function getApnsJwt(): Promise<string> {
   const now = Date.now()
   if (cachedJwt && now - jwtCreatedAt < 55 * 60 * 1000) return cachedJwt
 
-  const rawKey = Deno.env.get('APNS_PRIVATE_KEY')!.replace(/\\n/g, '\n')
-  const privateKey = await importPKCS8(rawKey, 'ES256')
+  // Normalise the stored key regardless of how it was saved in Supabase secrets:
+  // - literal \n characters → real newlines
+  // - then strip all whitespace from the base64 body and re-wrap at 64 chars
+  // This handles single-line blobs, mangled whitespace, and correct PEM equally.
+  const stored = Deno.env.get('APNS_PRIVATE_KEY')!.replace(/\\n/g, '\n').trim()
+  const b64Match = stored.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/)
+  if (!b64Match) throw new Error('APNS_PRIVATE_KEY is not a valid PKCS#8 PEM string')
+  const b64Body = b64Match[1].replace(/\s+/g, '')
+  const pemKey  = `-----BEGIN PRIVATE KEY-----\n${b64Body.match(/.{1,64}/g)!.join('\n')}\n-----END PRIVATE KEY-----`
+  const privateKey = await importPKCS8(pemKey, 'ES256')
 
   cachedJwt = await new SignJWT({})
     .setProtectedHeader({ alg: 'ES256', kid: Deno.env.get('APNS_KEY_ID') })
