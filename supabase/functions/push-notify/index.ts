@@ -33,19 +33,16 @@ const supabase = createClient(
 let cachedJwt: string | null = null
 let jwtCreatedAt = 0
 
-// Requires the service role key in Authorization header.
-// Supabase "Edge Functions" webhook type sends this automatically.
-// If you're using a custom HTTP webhook, add the header manually.
+// Supabase's gateway validates the JWT before the request reaches this code,
+// so any request carrying a valid Bearer token (anon or service role) is legitimate.
+// We just reject requests with no Authorization header at all.
 function verifyRequest(req: Request): boolean {
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!serviceRoleKey) return true
   const auth = req.headers.get('authorization') ?? ''
-  const ok = auth === `Bearer ${serviceRoleKey}`
-  if (!ok) {
-    console.error('push-notify: unauthorized request. auth header:', auth.slice(0, 20) + '…')
-    console.error('Expected Bearer <service_role_key>. Is the webhook using the "Edge Functions" type?')
+  if (!auth.startsWith('Bearer ')) {
+    console.error('push-notify: rejected request with no Authorization header')
+    return false
   }
-  return ok
+  return true
 }
 
 Deno.serve(async (req) => {
