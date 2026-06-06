@@ -224,7 +224,8 @@ async function sendToUser(
         if (!res.ok) {
           const text = await res.text()
           console.error(`APNs [${apnsHost}] error for token ${token.slice(0, 8)}…:`, res.status, text)
-          if (res.status === 410) {
+          // 410 Gone = token permanently unregistered; 400 BadDeviceToken = invalid/stale token
+          if (res.status === 410 || (res.status === 400 && text.includes('BadDeviceToken'))) {
             await supabase.from('device_tokens').delete().eq('token', token)
           }
         } else {
@@ -241,15 +242,12 @@ async function getApnsJwt(): Promise<string> {
   const now = Date.now()
   if (cachedJwt && now - jwtCreatedAt < 55 * 60 * 1000) return cachedJwt
 
-  // Normalise the stored key regardless of how it was saved in Supabase secrets:
-  // - literal \n characters → real newlines
-  // - then strip all whitespace from the base64 body and re-wrap at 64 chars
-  // This handles single-line blobs, mangled whitespace, and correct PEM equally.
+  // The key may be stored as raw base64 (no headers), full PEM, or with mangled
+  // whitespace. Strip any headers and all whitespace, then re-wrap cleanly.
   const stored = Deno.env.get('APNS_PRIVATE_KEY')!.replace(/\\n/g, '\n').trim()
-  const b64Match = stored.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/)
-  if (!b64Match) throw new Error('APNS_PRIVATE_KEY is not a valid PKCS#8 PEM string')
-  const b64Body = b64Match[1].replace(/\s+/g, '')
-  const pemKey  = `-----BEGIN PRIVATE KEY-----\n${b64Body.match(/.{1,64}/g)!.join('\n')}\n-----END PRIVATE KEY-----`
+  const b64 = stored.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
+  if (!b64) throw new Error('APNS_PRIVATE_KEY is empty')
+  const pemKey = `-----BEGIN PRIVATE KEY-----\n${b64.match(/.{1,64}/g)!.join('\n')}\n-----END PRIVATE KEY-----`
   const privateKey = await importPKCS8(pemKey, 'ES256')
 
   cachedJwt = await new SignJWT({})
